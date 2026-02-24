@@ -49,7 +49,7 @@
 		"camera_animation": "Camera Animation"
 	},
 	"appearance": {
-		"nb_max_pts": "Point budget", 
+		"nb_max_pts": "Point budget",
 		"point_size": "Point size",
 		"min_point_size": "Minimum size",
 		"point_opacity": "Opacity",
@@ -60,10 +60,20 @@
 		"extra_range": "Scalar range",
 		"point_quality": "Quality",
 		"point_shape": "Shape",
+		"edl_group": "Eye-Dome-Lighting",
 		"edl_radius": "Radius",
 		"edl_strength": "Strength",
 		"edl_opacity": "Opacity",
 		"edl_enable": "Enable",
+		"background_group": "Background",
+		"bg_skybox": "Skybox",
+		"bg_gradient": "Gradient",
+		"bg_black": "Black",
+		"bg_white": "White",
+		"bg_none": "None",
+		"other_group": "Other",
+		"splat_standard": "Standard",
+		"splat_hq": "High Quality",
 		"min_node_size": "Min node size",
 		"clip_mode": "Clip mode",
 		"move_speed": "Speed",
@@ -75,6 +85,25 @@
 		"language": "Language",
 		"backface_culling": "Backface Culling"
 	},
+	"tools": {
+		"measurement_group": "Measurement",
+		"show": "Show",
+		"hide": "Hide",
+		"clipping_group": "Clipping",
+		"clip_none": "None",
+		"clip_highlight": "Highlight",
+		"clip_inside": "Inside",
+		"clip_outside": "Outside",
+		"clip_inside_any": "Inside Any",
+		"clip_inside_all": "Inside All",
+		"navigation_group": "Navigation"
+	},
+	"scene": {
+		"camera_position": "Camera Position",
+		"camera_target": "Camera Target",
+		"objects_group": "Objects",
+		"properties_group": "Properties"
+	},
 	"measurements": {
 		"clip": "clip",
 		"show": "show volume"
@@ -82,23 +111,41 @@
 	"annotations": {
 		"show3D": "show in 3D",
 		"showMap": "show on map"
-	}, 
+	},
 	"profile": {
 		"nb_points": "Number of Points",
 		"title": "Height profile",
 		"save_las": "Save LAS(3D)",
 		"save_ortho": "Save CSV(2D)"
 	},
-	"scene": {
-		"camera_position": "Camera Position",
-		"camera_target": "Camera Target"
-	},
 	"filters": {
 		"return_number": "Return Number",
 		"number_of_returns": "Number of Returns",
 		"gps_min": "min",
 		"gps_max": "max",
-		"gps_time": "GPS Time"
+		"gps_time": "GPS Time",
+		"classification_group": "Classification",
+		"returns_group": "Returns",
+		"point_source_id_group": "Point Source ID",
+		"gps_time_group": "GPS Time",
+		"gps_time_label": "Time: ",
+		"gps_find": "find"
+	},
+	"about": {
+		"description": "is a viewer for large point cloud / LIDAR data sets, developed at the Vienna University of Technology.",
+		"author": "Author: ",
+		"license": "License: ",
+		"dependency_licenses": "Dependency Licenses:",
+		"see_github": "See github",
+		"funding": "Funding:",
+		"funding_description": "Potree is funded by a combination of research projects, companies, institutions and individuals. If you're making good use of Potree, please consider funding its future development",
+		"via_github_sponsors": "via Github Sponsors",
+		"or_by_inquiring": "or by directly inquiring",
+		"via_email": "via e-mail",
+		"research_projects": "Research projects who's funding contributes to Potree:",
+		"project_name": "Project Name",
+		"funding_agency": "Funding Agency",
+		"thanks": "Thanks to all the companies and institutions funding Potree:"
 	},
 	"settings": {
 		"language": "Language"
