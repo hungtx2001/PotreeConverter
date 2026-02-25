@@ -80452,7 +80452,6 @@ ENDSEC
 
 			let languages = [
 				["EN", "en"],
-				["VN", "vn"],
 				["FR", "fr"],
 				["DE", "de"],
 				["JP", "jp"],
@@ -80461,7 +80460,7 @@ ENDSEC
 				["ZH", "zh"],
 				["IT", "it"],
 				["CA", "ca"],
-				["VN", "vn"]
+				["VN", "vi"]
 			];
 
 			let elLanguages = $('#potree_languages');
@@ -89255,7 +89254,7 @@ ENDSEC
 				i18n.init({
 					lng: 'en',
 					resGetPath: Potree.resourcePath + '/lang/__lng__/__ns__.json',
-					preload: ['en', 'fr', 'de', 'jp', 'se', 'es', 'zh', 'it','ca', 'vn'],
+					preload: ['en', 'fr', 'de', 'jp', 'se', 'es', 'zh', 'it','ca', 'vi'],
 					getAsync: true,
 					debug: false
 				}, function (t) {
