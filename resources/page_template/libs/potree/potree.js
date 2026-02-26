@@ -80460,7 +80460,7 @@ ENDSEC
 				["ZH", "zh"],
 				["IT", "it"],
 				["CA", "ca"],
-				["VN", "vi"]
+				["VI", "vi"]
 			];
 
 			let elLanguages = $('#potree_languages');
