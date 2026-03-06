@@ -81724,280 +81724,291 @@ ENDSEC
 	 *
 	 */
 
-	 
-	class OrbitControls extends EventDispatcher{
-		
-		constructor(viewer){
-			super();
-			
-			this.viewer = viewer;
-			this.renderer = viewer.renderer;
 
-			this.scene = null;
-			this.sceneControls = new Scene();
+	class OrbitControls extends EventDispatcher {
 
-			this.rotationSpeed = 5;
+	  constructor(viewer) {
+	    super();
 
-			this.fadeFactor = 20;
-			this.yawDelta = 0;
-			this.pitchDelta = 0;
-			this.panDelta = new Vector2(0, 0);
-			this.radiusDelta = 0;
+	    this.viewer = viewer;
+	    this.renderer = viewer.renderer;
 
-			this.doubleClockZoomEnabled = true;
+	    this.scene = null;
+	    this.sceneControls = new Scene();
 
-			this.tweens = [];
+	    this.rotationSpeed = 5;
 
-			let drag = (e) => {
-				if (e.drag.object !== null) {
-					return;
-				}
+	    this.fadeFactor = 20;
+	    this.yawDelta = 0;
+	    this.pitchDelta = 0;
+	    this.panDelta = new Vector2(0, 0);
+	    this.radiusDelta = 0;
 
-				if (e.drag.startHandled === undefined) {
-					e.drag.startHandled = true;
+	    this.doubleClockZoomEnabled = true;
 
-					this.dispatchEvent({type: 'start'});
-				}
+	    this.tweens = [];
 
-				let ndrag = {
-					x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
-					y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
-				};
+	    let drag = (e) => {
+	      if ( e.drag.object !== null ) {
+	        return;
+	      }
 
-				if (e.drag.mouse === MOUSE$1.LEFT) {
-					this.yawDelta += ndrag.x * this.rotationSpeed;
-					this.pitchDelta += ndrag.y * this.rotationSpeed;
+	      if ( e.drag.startHandled === undefined ) {
+	        e.drag.startHandled = true;
 
-					this.stopTweens();
-				} else if (e.drag.mouse === MOUSE$1.RIGHT) {
-					this.panDelta.x += ndrag.x;
-					this.panDelta.y += ndrag.y;
+	        this.dispatchEvent({type: 'start'});
+	      }
 
-					this.stopTweens();
-				}
-			};
+	      let ndrag = {
+	        x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
+	        y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
+	      };
 
-			let drop = e => {
-				this.dispatchEvent({type: 'end'});
-			};
+	      if ( e.drag.mouse === MOUSE$1.LEFT ) {
+	        this.yawDelta += ndrag.x * this.rotationSpeed;
+	        this.pitchDelta += ndrag.y * this.rotationSpeed;
 
-			let scroll = (e) => {
-				let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+	        this.stopTweens();
+	      } else if ( e.drag.mouse === MOUSE$1.RIGHT ) {
+	        this.panDelta.x += ndrag.x;
+	        this.panDelta.y += ndrag.y;
 
-				this.radiusDelta += -e.delta * resolvedRadius * 0.1;
+	        this.stopTweens();
+	      }
+	    };
 
-				this.stopTweens();
-			};
+	    let drop = e => {
+	      this.dispatchEvent({type: 'end'});
+	    };
 
-			let dblclick = (e) => {
-				if(this.doubleClockZoomEnabled){
-					this.zoomToLocation(e.mouse);
-				}
-			};
+	    let scroll = (e) => {
+	      let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+	      let zoomSpeed = Math.max(resolvedRadius, 2.0);
 
-			let previousTouch = null;
-			let touchStart = e => {
-				previousTouch = e;
-			};
+	      this.radiusDelta += -e.delta * zoomSpeed * 0.1;
 
-			let touchEnd = e => {
-				previousTouch = e;
-			};
+	      this.stopTweens();
+	    };
 
-			let touchMove = e => {
-				if (e.touches.length === 2 && previousTouch.touches.length === 2){
-					let prev = previousTouch;
-					let curr = e;
+	    let dblclick = (e) => {
+	      if ( this.doubleClockZoomEnabled ) {
+	        this.zoomToLocation(e.mouse);
+	      }
+	    };
 
-					let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
-					let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
-					let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
+	    let previousTouch = null;
+	    let touchStart = e => {
+	      previousTouch = e;
+	    };
 
-					let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
-					let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
-					let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
+	    let touchEnd = e => {
+	      previousTouch = e;
+	    };
 
-					let delta = currDist / prevDist;
-					let resolvedRadius = this.scene.view.radius + this.radiusDelta;
-					let newRadius = resolvedRadius / delta;
-					this.radiusDelta = newRadius - resolvedRadius;
+	    let touchMove = e => {
+	      if ( e.touches.length === 2 && previousTouch.touches.length === 2 ) {
+	        let prev = previousTouch;
+	        let curr = e;
 
-					this.stopTweens();
-				}else if(e.touches.length === 3 && previousTouch.touches.length === 3){
-					let prev = previousTouch;
-					let curr = e;
+	        let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
+	        let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
+	        let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
 
-					let prevMeanX = (prev.touches[0].pageX + prev.touches[1].pageX + prev.touches[2].pageX) / 3;
-					let prevMeanY = (prev.touches[0].pageY + prev.touches[1].pageY + prev.touches[2].pageY) / 3;
+	        let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
+	        let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
+	        let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
 
-					let currMeanX = (curr.touches[0].pageX + curr.touches[1].pageX + curr.touches[2].pageX) / 3;
-					let currMeanY = (curr.touches[0].pageY + curr.touches[1].pageY + curr.touches[2].pageY) / 3;
+	        let delta = currDist / prevDist;
+	        let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+	        let newRadius = resolvedRadius / delta;
+	        this.radiusDelta = newRadius - resolvedRadius;
 
-					let delta = {
-						x: (currMeanX - prevMeanX) / this.renderer.domElement.clientWidth,
-						y: (currMeanY - prevMeanY) / this.renderer.domElement.clientHeight
-					};
+	        this.stopTweens();
+	      } else if ( e.touches.length === 3 && previousTouch.touches.length === 3 ) {
+	        let prev = previousTouch;
+	        let curr = e;
 
-					this.panDelta.x += delta.x;
-					this.panDelta.y += delta.y;
+	        let prevMeanX = (prev.touches[0].pageX + prev.touches[1].pageX + prev.touches[2].pageX) / 3;
+	        let prevMeanY = (prev.touches[0].pageY + prev.touches[1].pageY + prev.touches[2].pageY) / 3;
 
-					this.stopTweens();
-				}
+	        let currMeanX = (curr.touches[0].pageX + curr.touches[1].pageX + curr.touches[2].pageX) / 3;
+	        let currMeanY = (curr.touches[0].pageY + curr.touches[1].pageY + curr.touches[2].pageY) / 3;
 
-				previousTouch = e;
-			};
+	        let delta = {
+	          x: (currMeanX - prevMeanX) / this.renderer.domElement.clientWidth,
+	          y: (currMeanY - prevMeanY) / this.renderer.domElement.clientHeight
+	        };
 
-			this.addEventListener('touchstart', touchStart);
-			this.addEventListener('touchend', touchEnd);
-			this.addEventListener('touchmove', touchMove);
-			this.addEventListener('drag', drag);
-			this.addEventListener('drop', drop);
-			this.addEventListener('mousewheel', scroll);
-			this.addEventListener('dblclick', dblclick);
-		}
+	        this.panDelta.x += delta.x;
+	        this.panDelta.y += delta.y;
 
-		setScene (scene) {
-			this.scene = scene;
-		}
+	        this.stopTweens();
+	      }
 
-		stop(){
-			this.yawDelta = 0;
-			this.pitchDelta = 0;
-			this.radiusDelta = 0;
-			this.panDelta.set(0, 0);
-		}
-		
-		zoomToLocation(mouse){
-			let camera = this.scene.getActiveCamera();
-			
-			let I = Utils.getMousePointCloudIntersection(
-				mouse,
-				camera,
-				this.viewer,
-				this.scene.pointclouds,
-				{pickClipped: true});
+	      previousTouch = e;
+	    };
 
-			if (I === null) {
-				return;
-			}
+	    this.addEventListener('touchstart', touchStart);
+	    this.addEventListener('touchend', touchEnd);
+	    this.addEventListener('touchmove', touchMove);
+	    this.addEventListener('drag', drag);
+	    this.addEventListener('drop', drop);
+	    this.addEventListener('mousewheel', scroll);
+	    this.addEventListener('dblclick', dblclick);
+	  }
 
-			let targetRadius = 0;
-			{
-				let minimumJumpDistance = 0.2;
+	  setScene(scene) {
+	    this.scene = scene;
+	  }
 
-				let domElement = this.renderer.domElement;
-				let ray = Utils.mouseToRay(mouse, camera, domElement.clientWidth, domElement.clientHeight);
+	  stop() {
+	    this.yawDelta = 0;
+	    this.pitchDelta = 0;
+	    this.radiusDelta = 0;
+	    this.panDelta.set(0, 0);
+	  }
 
-				let nodes = I.pointcloud.nodesOnRay(I.pointcloud.visibleNodes, ray);
-				let lastNode = nodes[nodes.length - 1];
-				let radius = lastNode.getBoundingSphere(new Sphere()).radius;
-				targetRadius = Math.min(this.scene.view.radius, radius);
-				targetRadius = Math.max(minimumJumpDistance, targetRadius);
-			}
+	  zoomToLocation(mouse) {
+	    let camera = this.scene.getActiveCamera();
 
-			let d = this.scene.view.direction.multiplyScalar(-1);
-			let cameraTargetPosition = new Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
-			// TODO Unused: let controlsTargetPosition = I.location;
+	    let I = Utils.getMousePointCloudIntersection(
+	      mouse,
+	      camera,
+	      this.viewer,
+	      this.scene.pointclouds,
+	      {pickClipped: true});
 
-			let animationDuration = 600;
-			let easing = TWEEN.Easing.Quartic.Out;
+	    if ( I === null ) {
+	      return;
+	    }
 
-			{ // animate
-				let value = {x: 0};
-				let tween = new TWEEN.Tween(value).to({x: 1}, animationDuration);
-				tween.easing(easing);
-				this.tweens.push(tween);
+	    let targetRadius = 0;
+	    {
+	      let minimumJumpDistance = 0.2;
 
-				let startPos = this.scene.view.position.clone();
-				let targetPos = cameraTargetPosition.clone();
-				let startRadius = this.scene.view.radius;
-				let targetRadius = cameraTargetPosition.distanceTo(I.location);
+	      let domElement = this.renderer.domElement;
+	      let ray = Utils.mouseToRay(mouse, camera, domElement.clientWidth, domElement.clientHeight);
 
-				tween.onUpdate(() => {
-					let t = value.x;
-					this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
-					this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
-					this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
+	      let nodes = I.pointcloud.nodesOnRay(I.pointcloud.visibleNodes, ray);
+	      let lastNode = nodes[nodes.length - 1];
+	      let radius = lastNode.getBoundingSphere(new Sphere()).radius;
+	      targetRadius = Math.min(this.scene.view.radius, radius);
+	      targetRadius = Math.max(minimumJumpDistance, targetRadius);
+	    }
 
-					this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
-					this.viewer.setMoveSpeed(this.scene.view.radius);
-				});
+	    let d = this.scene.view.direction.multiplyScalar(-1);
+	    let cameraTargetPosition = new Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
+	    // TODO Unused: let controlsTargetPosition = I.location;
 
-				tween.onComplete(() => {
-					this.tweens = this.tweens.filter(e => e !== tween);
-				});
+	    let animationDuration = 600;
+	    let easing = TWEEN.Easing.Quartic.Out;
 
-				tween.start();
-			}
-		}
+	    { // animate
+	      let value = {x: 0};
+	      let tween = new TWEEN.Tween(value).to({x: 1}, animationDuration);
+	      tween.easing(easing);
+	      this.tweens.push(tween);
 
-		stopTweens () {
-			this.tweens.forEach(e => e.stop());
-			this.tweens = [];
-		}
+	      let startPos = this.scene.view.position.clone();
+	      let targetPos = cameraTargetPosition.clone();
+	      let startRadius = this.scene.view.radius;
+	      let targetRadius = cameraTargetPosition.distanceTo(I.location);
 
-		update (delta) {
-			let view = this.scene.view;
+	      tween.onUpdate(() => {
+	        let t = value.x;
+	        this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
+	        this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
+	        this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
 
-			{ // apply rotation
-				let progression = Math.min(1, this.fadeFactor * delta);
+	        this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
+	        this.viewer.setMoveSpeed(this.scene.view.radius);
+	      });
 
-				let yaw = view.yaw;
-				let pitch = view.pitch;
-				let pivot = view.getPivot();
+	      tween.onComplete(() => {
+	        this.tweens = this.tweens.filter(e => e !== tween);
+	      });
 
-				yaw -= progression * this.yawDelta;
-				pitch -= progression * this.pitchDelta;
+	      tween.start();
+	    }
+	  }
 
-				view.yaw = yaw;
-				view.pitch = pitch;
+	  stopTweens() {
+	    this.tweens.forEach(e => e.stop());
+	    this.tweens = [];
+	  }
 
-				let V = this.scene.view.direction.multiplyScalar(-view.radius);
-				let position = new Vector3().addVectors(pivot, V);
+	  update(delta) {
+	    let view = this.scene.view;
 
-				view.position.copy(position);
-			}
+	    { // apply rotation
+	      let progression = Math.min(1, this.fadeFactor * delta);
 
-			{ // apply pan
-				let progression = Math.min(1, this.fadeFactor * delta);
-				let panDistance = progression * view.radius * 3;
+	      let yaw = view.yaw;
+	      let pitch = view.pitch;
+	      let pivot = view.getPivot();
 
-				let px = -this.panDelta.x * panDistance;
-				let py = this.panDelta.y * panDistance;
+	      yaw -= progression * this.yawDelta;
+	      pitch -= progression * this.pitchDelta;
 
-				view.pan(px, py);
-			}
+	      view.yaw = yaw;
+	      view.pitch = pitch;
 
-			{ // apply zoom
-				let progression = Math.min(1, this.fadeFactor * delta);
+	      let activeRadius = Math.max(1.0, view.radius);
+	      let V = this.scene.view.direction.multiplyScalar(-activeRadius);
+	      let position = new Vector3().addVectors(pivot, V);
 
-				// let radius = view.radius + progression * this.radiusDelta * view.radius * 0.1;
-				let radius = view.radius + progression * this.radiusDelta;
+	      view.position.copy(position);
+	    }
 
-				let V = view.direction.multiplyScalar(-radius);
-				let position = new Vector3().addVectors(view.getPivot(), V);
-				view.radius = radius;
+	    { // apply pan
+	      let progression = Math.min(1, this.fadeFactor * delta);
+	      let activeRadius = Math.max(1.0, view.radius);
+	      let panDistance = progression * activeRadius * 3;
 
-				view.position.copy(position);
-			}
+	      let px = -this.panDelta.x * panDistance;
+	      let py = this.panDelta.y * panDistance;
 
-			{
-				let speed = view.radius;
-				this.viewer.setMoveSpeed(speed);
-			}
+	      view.pan(px, py);
+	    }
 
-			{ // decelerate over time
-				let progression = Math.min(1, this.fadeFactor * delta);
-				let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
+	    { // apply zoom
+	      let progression = Math.min(1, this.fadeFactor * delta);
 
-				this.yawDelta *= attenuation;
-				this.pitchDelta *= attenuation;
-				this.panDelta.multiplyScalar(attenuation);
-				// this.radiusDelta *= attenuation;
-				this.radiusDelta -= progression * this.radiusDelta;
-			}
-		}
-	};
+	      // let radius = view.radius + progression * this.radiusDelta * view.radius * 0.1;
+	      let radius = view.radius + progression * this.radiusDelta;
+	      let pivot = view.getPivot();
+
+	      if ( radius < 0.1 ) {
+	        let pushForward = 0.1 - radius;
+	        pivot.add(view.direction.clone().multiplyScalar(pushForward));
+	        radius = 0.1;
+	        this.radiusDelta = 0;
+	      }
+
+	      let V = view.direction.multiplyScalar(-radius);
+	      let position = new Vector3().addVectors(pivot, V);
+	      view.radius = radius;
+
+	      view.position.copy(position);
+	    }
+
+	    {
+	      let speed = Math.max(5.0, view.radius);
+	      this.viewer.setMoveSpeed(speed);
+	    }
+
+	    { // decelerate over time
+	      let progression = Math.min(1, this.fadeFactor * delta);
+	      let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
+
+	      this.yawDelta *= attenuation;
+	      this.pitchDelta *= attenuation;
+	      this.panDelta.multiplyScalar(attenuation);
+	      // this.radiusDelta *= attenuation;
+	      this.radiusDelta -= progression * this.radiusDelta;
+	    }
+	  }
+	}
 
 	/**
 	 * @author mschuetz / http://mschuetz.at
@@ -82278,287 +82289,309 @@ ENDSEC
 	};
 
 	class EarthControls extends EventDispatcher {
-		constructor (viewer) {
-			super(viewer);
+	  constructor(viewer) {
+	    super(viewer);
 
-			this.viewer = viewer;
-			this.renderer = viewer.renderer;
+	    this.viewer = viewer;
+	    this.renderer = viewer.renderer;
 
-			this.scene = null;
-			this.sceneControls = new Scene();
+	    this.scene = null;
+	    this.sceneControls = new Scene();
 
-			this.rotationSpeed = 10;
+	    this.rotationSpeed = 10;
 
-			this.fadeFactor = 20;
-			this.wheelDelta = 0;
-			this.zoomDelta = new Vector3();
-			this.camStart = null;
+	    this.fadeFactor = 20;
+	    this.wheelDelta = 0;
+	    this.zoomDelta = new Vector3();
+	    this.camStart = null;
 
-			this.tweens = [];
+	    this.tweens = [];
 
-			{
-				let sg = new SphereGeometry(1, 16, 16);
-				let sm = new MeshNormalMaterial();
-				this.pivotIndicator = new Mesh(sg, sm);
-				this.pivotIndicator.visible = false;
-				this.sceneControls.add(this.pivotIndicator);
-			}
+	    {
+	      let sg = new SphereGeometry(1, 16, 16);
+	      let sm = new MeshNormalMaterial();
+	      this.pivotIndicator = new Mesh(sg, sm);
+	      this.pivotIndicator.visible = false;
+	      this.sceneControls.add(this.pivotIndicator);
+	    }
 
-			let drag = (e) => {
-				if (e.drag.object !== null) {
-					return;
-				}
+	    let drag = (e) => {
+	      if ( e.drag.object !== null ) {
+	        return;
+	      }
 
-				if (!this.pivot) {
-					return;
-				}
+	      if ( !this.pivot ) {
+	        return;
+	      }
 
-				if (e.drag.startHandled === undefined) {
-					e.drag.startHandled = true;
+	      if ( e.drag.startHandled === undefined ) {
+	        e.drag.startHandled = true;
 
-					this.dispatchEvent({type: 'start'});
-				}
+	        this.dispatchEvent({type: 'start'});
+	      }
 
-				let camStart = this.camStart;
-				let camera = this.scene.getActiveCamera();
-				let view = this.viewer.scene.view;
+	      let camStart = this.camStart;
+	      let camera = this.scene.getActiveCamera();
+	      let view = this.viewer.scene.view;
 
-				// let camera = this.viewer.scene.camera;
-				let mouse = e.drag.end;
-				let domElement = this.viewer.renderer.domElement;
+	      // let camera = this.viewer.scene.camera;
+	      let mouse = e.drag.end;
+	      let domElement = this.viewer.renderer.domElement;
 
-				if (e.drag.mouse === MOUSE$1.LEFT) {
+	      if ( e.drag.mouse === MOUSE$1.LEFT ) {
 
-					let ray = Utils.mouseToRay(mouse, camera, domElement.clientWidth, domElement.clientHeight);
-					let plane = new Plane().setFromNormalAndCoplanarPoint(
-						new Vector3(0, 0, 1),
-						this.pivot);
+	        let ray = Utils.mouseToRay(mouse, camera, domElement.clientWidth, domElement.clientHeight);
+	        let plane = new Plane().setFromNormalAndCoplanarPoint(
+	          new Vector3(0, 0, 1),
+	          this.pivot);
 
-					let distanceToPlane = ray.distanceToPlane(plane);
+	        let distanceToPlane = ray.distanceToPlane(plane);
 
-					if (distanceToPlane > 0) {
-						let I = new Vector3().addVectors(
-							camStart.position,
-							ray.direction.clone().multiplyScalar(distanceToPlane));
+	        if ( distanceToPlane > 0 ) {
+	          let I = new Vector3().addVectors(
+	            camStart.position,
+	            ray.direction.clone().multiplyScalar(distanceToPlane));
 
-						let movedBy = new Vector3().subVectors(
-							I, this.pivot);
+	          let movedBy = new Vector3().subVectors(
+	            I, this.pivot);
 
-						let newCamPos = camStart.position.clone().sub(movedBy);
+	          let newCamPos = camStart.position.clone().sub(movedBy);
 
-						view.position.copy(newCamPos);
+	          view.position.copy(newCamPos);
 
-						{
-							let distance = newCamPos.distanceTo(this.pivot);
-							view.radius = distance;
-							let speed = view.radius / 2.5;
-							this.viewer.setMoveSpeed(speed);
-						}
-					}
-				} else if (e.drag.mouse === MOUSE$1.RIGHT) {
-					let ndrag = {
-						x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
-						y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
-					};
+	          {
+	            let distance = newCamPos.distanceTo(this.pivot);
+	            view.radius = distance;
+	            let speed = view.radius / 2.5;
+	            this.viewer.setMoveSpeed(speed);
+	          }
+	        }
+	      } else if ( e.drag.mouse === MOUSE$1.RIGHT ) {
+	        let ndrag = {
+	          x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
+	          y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
+	        };
 
-					let yawDelta = -ndrag.x * this.rotationSpeed * 0.5;
-					let pitchDelta = -ndrag.y * this.rotationSpeed * 0.2;
+	        let yawDelta = -ndrag.x * this.rotationSpeed * 0.5;
+	        let pitchDelta = -ndrag.y * this.rotationSpeed * 0.2;
 
-					let originalPitch = view.pitch;
-					let tmpView = view.clone();
-					tmpView.pitch = tmpView.pitch + pitchDelta;
-					pitchDelta = tmpView.pitch - originalPitch;
+	        let originalPitch = view.pitch;
+	        let tmpView = view.clone();
+	        tmpView.pitch = tmpView.pitch + pitchDelta;
+	        pitchDelta = tmpView.pitch - originalPitch;
 
-					let pivotToCam = new Vector3().subVectors(view.position, this.pivot);
-					let pivotToCamTarget = new Vector3().subVectors(view.getPivot(), this.pivot);
-					let side = view.getSide();
+	        let pivotToCam = new Vector3().subVectors(view.position, this.pivot);
+	        let pivotToCamTarget = new Vector3().subVectors(view.getPivot(), this.pivot);
+	        let side = view.getSide();
 
-					pivotToCam.applyAxisAngle(side, pitchDelta);
-					pivotToCamTarget.applyAxisAngle(side, pitchDelta);
+	        pivotToCam.applyAxisAngle(side, pitchDelta);
+	        pivotToCamTarget.applyAxisAngle(side, pitchDelta);
 
-					pivotToCam.applyAxisAngle(new Vector3(0, 0, 1), yawDelta);
-					pivotToCamTarget.applyAxisAngle(new Vector3(0, 0, 1), yawDelta);
+	        pivotToCam.applyAxisAngle(new Vector3(0, 0, 1), yawDelta);
+	        pivotToCamTarget.applyAxisAngle(new Vector3(0, 0, 1), yawDelta);
 
-					let newCam = new Vector3().addVectors(this.pivot, pivotToCam);
-					// TODO: Unused: let newCamTarget = new THREE.Vector3().addVectors(this.pivot, pivotToCamTarget);
+	        let newCam = new Vector3().addVectors(this.pivot, pivotToCam);
+	        // TODO: Unused: let newCamTarget = new THREE.Vector3().addVectors(this.pivot, pivotToCamTarget);
 
-					view.position.copy(newCam);
-					view.yaw += yawDelta;
-					view.pitch += pitchDelta;
-				}
-			};
+	        view.position.copy(newCam);
+	        view.yaw += yawDelta;
+	        view.pitch += pitchDelta;
+	      }
+	    };
 
-			let onMouseDown = e => {
-				let I = Utils.getMousePointCloudIntersection(
-					e.mouse, 
-					this.scene.getActiveCamera(), 
-					this.viewer, 
-					this.scene.pointclouds, 
-					{pickClipped: false});
+	    let onMouseDown = e => {
+	      let I = Utils.getMousePointCloudIntersection(
+	        e.mouse,
+	        this.scene.getActiveCamera(),
+	        this.viewer,
+	        this.scene.pointclouds,
+	        {pickClipped: false});
 
-				if (I) {
-					this.pivot = I.location;
-					this.camStart = this.scene.getActiveCamera().clone();
-					this.pivotIndicator.visible = true;
-					this.pivotIndicator.position.copy(I.location);
-				}
-			};
+	      let camera = this.scene.getActiveCamera();
 
-			let drop = e => {
-				this.dispatchEvent({type: 'end'});
-			};
+	      if ( I ) {
+	        this.pivot = I.location;
+	      } else {
+	        let domElement = this.viewer.renderer.domElement;
+	        let ray = Utils.mouseToRay(e.mouse, camera, domElement.clientWidth, domElement.clientHeight);
+	        let distance = this.scene.view.radius || 100;
+	        this.pivot = new Vector3().addVectors(camera.position, ray.direction.multiplyScalar(distance));
+	      }
 
-			let onMouseUp = e => {
-				this.camStart = null;
-				this.pivot = null;
-				this.pivotIndicator.visible = false;
-			};
+	      this.camStart = camera.clone();
+	      this.pivotIndicator.visible = true;
+	      this.pivotIndicator.position.copy(this.pivot);
+	    };
 
-			let scroll = (e) => {
-				this.wheelDelta += e.delta;
-			};
+	    let drop = e => {
+	      this.dispatchEvent({type: 'end'});
+	    };
 
-			let dblclick = (e) => {
-				this.zoomToLocation(e.mouse);
-			};
+	    let onMouseUp = e => {
+	      this.camStart = null;
+	      this.pivot = null;
+	      this.pivotIndicator.visible = false;
+	    };
 
-			this.addEventListener('drag', drag);
-			this.addEventListener('drop', drop);
-			this.addEventListener('mousewheel', scroll);
-			this.addEventListener('mousedown', onMouseDown);
-			this.addEventListener('mouseup', onMouseUp);
-			this.addEventListener('dblclick', dblclick);
-		}
+	    let scroll = (e) => {
+	      this.wheelDelta += e.delta;
+	    };
 
-		setScene (scene) {
-			this.scene = scene;
-		}
+	    let dblclick = (e) => {
+	      this.zoomToLocation(e.mouse);
+	    };
 
-		stop(){
-			this.wheelDelta = 0;
-			this.zoomDelta.set(0, 0, 0);
-		}
-		
-		zoomToLocation(mouse){
-			let camera = this.scene.getActiveCamera();
-			
-			let I = Utils.getMousePointCloudIntersection(
-				mouse,
-				camera,
-				this.viewer,
-				this.scene.pointclouds);
+	    this.addEventListener('drag', drag);
+	    this.addEventListener('drop', drop);
+	    this.addEventListener('mousewheel', scroll);
+	    this.addEventListener('mousedown', onMouseDown);
+	    this.addEventListener('mouseup', onMouseUp);
+	    this.addEventListener('dblclick', dblclick);
+	  }
 
-			if (I === null) {
-				return;
-			}
+	  setScene(scene) {
+	    this.scene = scene;
+	  }
 
-			let targetRadius = 0;
-			{
-				let minimumJumpDistance = 0.2;
+	  stop() {
+	    this.wheelDelta = 0;
+	    this.zoomDelta.set(0, 0, 0);
+	  }
 
-				let domElement = this.renderer.domElement;
-				let ray = Utils.mouseToRay(mouse, camera, domElement.clientWidth, domElement.clientHeight);
+	  zoomToLocation(mouse) {
+	    let camera = this.scene.getActiveCamera();
 
-				let nodes = I.pointcloud.nodesOnRay(I.pointcloud.visibleNodes, ray);
-				let lastNode = nodes[nodes.length - 1];
-				let radius = lastNode.getBoundingSphere(new Sphere()).radius;
-				targetRadius = Math.min(this.scene.view.radius, radius);
-				targetRadius = Math.max(minimumJumpDistance, targetRadius);
-			}
+	    let I = Utils.getMousePointCloudIntersection(
+	      mouse,
+	      camera,
+	      this.viewer,
+	      this.scene.pointclouds);
 
-			let d = this.scene.view.direction.multiplyScalar(-1);
-			let cameraTargetPosition = new Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
-			// TODO Unused: let controlsTargetPosition = I.location;
+	    if ( I === null ) {
+	      return;
+	    }
 
-			let animationDuration = 600;
-			let easing = TWEEN.Easing.Quartic.Out;
+	    let targetRadius = 0;
+	    {
+	      let minimumJumpDistance = 0.2;
 
-			{ // animate
-				let value = {x: 0};
-				let tween = new TWEEN.Tween(value).to({x: 1}, animationDuration);
-				tween.easing(easing);
-				this.tweens.push(tween);
+	      let domElement = this.renderer.domElement;
+	      let ray = Utils.mouseToRay(mouse, camera, domElement.clientWidth, domElement.clientHeight);
 
-				let startPos = this.scene.view.position.clone();
-				let targetPos = cameraTargetPosition.clone();
-				let startRadius = this.scene.view.radius;
-				let targetRadius = cameraTargetPosition.distanceTo(I.location);
+	      let nodes = I.pointcloud.nodesOnRay(I.pointcloud.visibleNodes, ray);
+	      let lastNode = nodes[nodes.length - 1];
+	      let radius = lastNode.getBoundingSphere(new Sphere()).radius;
+	      targetRadius = Math.min(this.scene.view.radius, radius);
+	      targetRadius = Math.max(minimumJumpDistance, targetRadius);
+	    }
 
-				tween.onUpdate(() => {
-					let t = value.x;
-					this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
-					this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
-					this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
+	    let d = this.scene.view.direction.multiplyScalar(-1);
+	    let cameraTargetPosition = new Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
+	    // TODO Unused: let controlsTargetPosition = I.location;
 
-					this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
-					this.viewer.setMoveSpeed(this.scene.view.radius / 2.5);
-				});
+	    let animationDuration = 600;
+	    let easing = TWEEN.Easing.Quartic.Out;
 
-				tween.onComplete(() => {
-					this.tweens = this.tweens.filter(e => e !== tween);
-				});
+	    { // animate
+	      let value = {x: 0};
+	      let tween = new TWEEN.Tween(value).to({x: 1}, animationDuration);
+	      tween.easing(easing);
+	      this.tweens.push(tween);
 
-				tween.start();
-			}
-		}
+	      let startPos = this.scene.view.position.clone();
+	      let targetPos = cameraTargetPosition.clone();
+	      let startRadius = this.scene.view.radius;
+	      let targetRadius = cameraTargetPosition.distanceTo(I.location);
 
-		update (delta) {
-			let view = this.scene.view;
-			let fade = Math.pow(0.5, this.fadeFactor * delta);
-			let progression = 1 - fade;
-			let camera = this.scene.getActiveCamera();
-			
-			// compute zoom
-			if (this.wheelDelta !== 0) {
-				let I = Utils.getMousePointCloudIntersection(
-					this.viewer.inputHandler.mouse, 
-					this.scene.getActiveCamera(), 
-					this.viewer, 
-					this.scene.pointclouds);
+	      tween.onUpdate(() => {
+	        let t = value.x;
+	        this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
+	        this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
+	        this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
 
-				if (I) {
-					let resolvedPos = new Vector3().addVectors(view.position, this.zoomDelta);
-					let distance = I.location.distanceTo(resolvedPos);
-					let jumpDistance = distance * 0.2 * this.wheelDelta;
-					let targetDir = new Vector3().subVectors(I.location, view.position);
-					targetDir.normalize();
+	        this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
+	        this.viewer.setMoveSpeed(this.scene.view.radius / 2.5);
+	      });
 
-					resolvedPos.add(targetDir.multiplyScalar(jumpDistance));
-					this.zoomDelta.subVectors(resolvedPos, view.position);
+	      tween.onComplete(() => {
+	        this.tweens = this.tweens.filter(e => e !== tween);
+	      });
 
-					{
-						let distance = resolvedPos.distanceTo(I.location);
-						view.radius = distance;
-						let speed = view.radius / 2.5;
-						this.viewer.setMoveSpeed(speed);
-					}
-				}
-			}
+	      tween.start();
+	    }
+	  }
 
-			// apply zoom
-			if (this.zoomDelta.length() !== 0) {
-				let p = this.zoomDelta.clone().multiplyScalar(progression);
+	  update(delta) {
+	    let view = this.scene.view;
+	    let fade = Math.pow(0.5, this.fadeFactor * delta);
+	    let progression = 1 - fade;
+	    let camera = this.scene.getActiveCamera();
 
-				let newPos = new Vector3().addVectors(view.position, p);
-				view.position.copy(newPos);
-			}
+	    // compute zoom
+	    if ( this.wheelDelta !== 0 ) {
+	      let I = Utils.getMousePointCloudIntersection(
+	        this.viewer.inputHandler.mouse,
+	        this.scene.getActiveCamera(),
+	        this.viewer,
+	        this.scene.pointclouds);
 
-			if (this.pivotIndicator.visible) {
-				let distance = this.pivotIndicator.position.distanceTo(view.position);
-				let pixelwidth = this.renderer.domElement.clientwidth;
-				let pixelHeight = this.renderer.domElement.clientHeight;
-				let pr = Utils.projectedRadius(1, camera, distance, pixelwidth, pixelHeight);
-				let scale = (10 / pr);
-				this.pivotIndicator.scale.set(scale, scale, scale);
-			}
+	      if ( I ) {
+	        let resolvedPos = new Vector3().addVectors(view.position, this.zoomDelta);
+	        let distance = I.location.distanceTo(resolvedPos);
+	        let zoomSpeed = Math.max(distance, 2.0);
+	        let jumpDistance = zoomSpeed * 0.2 * this.wheelDelta;
+	        let targetDir = new Vector3().subVectors(I.location, view.position);
+	        targetDir.normalize();
 
-			// decelerate over time
-			{
-				this.zoomDelta.multiplyScalar(fade);
-				this.wheelDelta = 0;
-			}
-		}
-	};
+	        resolvedPos.add(targetDir.multiplyScalar(jumpDistance));
+	        this.zoomDelta.subVectors(resolvedPos, view.position);
+
+	        {
+	          let distance = resolvedPos.distanceTo(I.location);
+	          view.radius = distance;
+	          let speed = Math.max(5.0, view.radius / 2.5);
+	          this.viewer.setMoveSpeed(speed);
+	        }
+	      } else {
+	        let resolvedPos = new Vector3().addVectors(view.position, this.zoomDelta);
+	        let distance = view.radius || 100;
+	        let zoomSpeed = Math.max(distance, 2.0);
+	        let jumpDistance = zoomSpeed * 0.2 * this.wheelDelta;
+	        let targetDir = view.direction.clone();
+
+	        resolvedPos.add(targetDir.multiplyScalar(jumpDistance));
+	        this.zoomDelta.subVectors(resolvedPos, view.position);
+
+	        view.radius = Math.max(1.0, view.radius - jumpDistance);
+	        let speed = Math.max(5.0, view.radius / 2.5);
+	        this.viewer.setMoveSpeed(speed);
+	      }
+	    }
+
+	    // apply zoom
+	    if ( this.zoomDelta.length() !== 0 ) {
+	      let p = this.zoomDelta.clone().multiplyScalar(progression);
+
+	      let newPos = new Vector3().addVectors(view.position, p);
+	      view.position.copy(newPos);
+	    }
+
+	    if ( this.pivotIndicator.visible ) {
+	      let distance = this.pivotIndicator.position.distanceTo(view.position);
+	      let pixelwidth = this.renderer.domElement.clientwidth;
+	      let pixelHeight = this.renderer.domElement.clientHeight;
+	      let pr = Utils.projectedRadius(1, camera, distance, pixelwidth, pixelHeight);
+	      let scale = (10 / pr);
+	      this.pivotIndicator.scale.set(scale, scale, scale);
+	    }
+
+	    // decelerate over time
+	    {
+	      this.zoomDelta.multiplyScalar(fade);
+	      this.wheelDelta = 0;
+	    }
+	  }
+	}
 
 	/**
 	 * @author chrisl / Geodan
