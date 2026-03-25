@@ -52217,8 +52217,6 @@
           uh = (1 - uh) * (-Math.PI / 2) + uh * (Math.PI / 2);
           let height = Math.sin(uh);
 
-          console.log(uh, height);
-
           for ( let i = 0; i <= steps; i++ ) {
             let u = (i / steps) * Math.PI * 2;
             let uNext = u + 2 * Math.PI / steps;
@@ -54887,7 +54885,7 @@
             }, function progress(xhr) {
               // console.log( (xhr.loaded / xhr.total * 100) + '% loaded' );
             }, function error(xhr) {
-              console.log('An error happened', xhr);
+              console.error('An error happened', xhr);
             }
           );
         }
@@ -55244,7 +55242,7 @@
 
       const end = performance.now();
       const duration = (end - start);
-      console.log(`duration: ${duration.toFixed(3)}ms`);
+
 
       return {
         node: closestNode,
@@ -55386,13 +55384,11 @@
 
       try {
         let success = document.execCommand('copy');
-        if ( success ) {
-          console.log("copied text to clipboard");
-        } else {
-          console.log("copy to clipboard failed");
+        if ( !success ) {
+          console.warn("copy to clipboard failed");
         }
       } catch ( err ) {
-        console.log("error while trying to copy to clipboard");
+        console.warn("error while trying to copy to clipboard");
       }
 
       document.body.removeChild(textArea);
@@ -55946,7 +55942,6 @@
           annotationStartOffset = this.offset.clone();
           $(this.domElement).find(".annotation-titlebar").css("pointer-events", "none");
 
-          console.log($(this.domElement).find(".annotation-titlebar"));
         },
         stop: () => {
           $(this.domElement).find(".annotation-titlebar").css("pointer-events", "");
@@ -57324,7 +57319,7 @@
         let duration = performance.now() - tStart;
         if ( duration > 5 ) {
           let msg = `duration: ${duration}ms, numNodes: ${decoded.length}`;
-          console.log(msg);
+
         }
 
         node.loadPoints();
@@ -57343,7 +57338,7 @@
               let hbuffer = xhr.response;
               callback(node, hbuffer);
             } else {
-              console.log('Failed to load file! HTTP status: ' + xhr.status + ', file: ' + hurl);
+
               Potree.numNodesLoading--;
             }
           }
@@ -57351,7 +57346,7 @@
         try {
           xhr.send(null);
         } catch ( e ) {
-          console.log('fehler beim laden der punktwolke: ' + e);
+
         }
       }
     }
@@ -61220,7 +61215,6 @@ void main() {
       fitted.scale.multiply(ds);
 
       let duration = performance.now() - start;
-      console.log("duration: ", duration);
 
       yield fitted;
     }
@@ -61277,7 +61271,6 @@ void main() {
       fitted.scale.multiply(ds);
 
       let duration = performance.now() - start;
-      console.log("duration: ", duration);
 
       return fitted;
     }
@@ -62116,7 +62109,6 @@ void main() {
       const tEnd = performance.now();
       const duration = tEnd - tStart;
 
-      console.log(`shader compile duration: ${duration.toFixed(3)}`);
 
 
     }
@@ -62646,7 +62638,6 @@ void main() {
 
         const geometry = node.geometryNode.geometry;
 
-        if ( !geometry ) console.log('Missing geometry', node);
         if ( geometry.attributes["gps-time"] ) {
           const bufferAttribute = geometry.attributes["gps-time"];
           const attGPS = octree.getAttribute("gps-time");
@@ -66881,7 +66872,7 @@ void main() {
           return line;
         }
       } else {
-        console.log("unhandled feature: ", feature);
+
       }
     }
 
@@ -67449,7 +67440,6 @@ void main() {
 
         let offsetToFirstIFD = data.readUInt32LE(4);
 
-        console.log("offsetToFirstIFD", offsetToFirstIFD);
 
         let ifds = [];
         let IFDsRead = false;
@@ -67457,11 +67447,10 @@ void main() {
         let i = 0;
         while ( IFDsRead || i < 100 ) {
 
-          console.log("currentIFDOffset", currentIFDOffset);
+
           let numEntries = data.readUInt16LE(currentIFDOffset);
           let nextIFDOffset = data.readUInt32LE(currentIFDOffset + 2 + numEntries * 12);
 
-          console.log("next offset: ", currentIFDOffset + 2 + numEntries * 12);
 
           let entryBuffer = data.slice(currentIFDOffset + 2, currentIFDOffset + 2 + 12 * numEntries);
 
@@ -67493,7 +67482,6 @@ void main() {
             ifds.push(ifd);
           }
 
-          console.log("nextIFDOffset", nextIFDOffset);
 
           if ( nextIFDOffset === 0 ) {
             break;
@@ -67572,11 +67560,9 @@ void main() {
           }
         }
 
-        console.log(`width: ${width}`);
-        console.log(`height: ${height}`);
-        console.log(`numStrips: ${numStrips}`);
-        console.log("stripByteCounts", stripByteCounts.join(", "));
-        console.log("stripOffsets", stripOffsets.join(", "));
+
+
+
 
         let image = new Image();
         image.width = width;
@@ -68377,7 +68363,6 @@ void main() {
     }
 
     onSceneChange(scene) {
-      console.log("scene changed");
     }
 
     startInsertion() {
@@ -71755,15 +71740,13 @@ void main() {
         try {
           this.setSceneProjection(pointcloud.projection);
         } catch ( e ) {
-          console.log('Failed projection:', e);
+          console.warn('Failed projection:', e);
 
           if ( pointcloud.fallbackProjection ) {
             try {
-              console.log('Trying fallback projection...');
               this.setSceneProjection(pointcloud.fallbackProjection);
-              console.log('Set projection from fallback');
             } catch ( e ) {
-              console.log('Failed fallback projection:', e);
+              console.warn('Failed fallback projection:', e);
               return;
             }
           } else {
@@ -74675,7 +74658,6 @@ ENDSEC
           let rightDir = new Vector3().crossVectors(startEndDir, upDir);
           let leftDir = new Vector3().crossVectors(endStartDir, upDir);
 
-          console.log(leftDir);
 
           let right = rightDir.clone().multiplyScalar(width * 0.5).add(center);
           let left = leftDir.clone().multiplyScalar(width * 0.5).add(center);
@@ -76757,7 +76739,6 @@ ENDSEC
       const raycaster = new Raycaster();
 
       const tEnd = performance.now();
-      console.log(tEnd - tStart);
 
       // const sp = new THREE.PlaneGeometry(1, 1);
       // const lg = new THREE.Geometry();
@@ -76909,7 +76890,6 @@ ENDSEC
       };
 
       const moveToImage = (image) => {
-        console.log("move to image " + image.id);
 
         const mesh = image.mesh;
         const newCamPos = image.position.clone();
@@ -80518,7 +80498,6 @@ ENDSEC
     }
 
     onTouchStart(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onTouchStart');
 
       e.preventDefault();
 
@@ -80542,7 +80521,6 @@ ENDSEC
     }
 
     onTouchEnd(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onTouchEnd');
 
       e.preventDefault();
 
@@ -80571,7 +80549,6 @@ ENDSEC
     }
 
     onTouchMove(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onTouchMove');
 
       e.preventDefault();
 
@@ -80589,7 +80566,6 @@ ENDSEC
 
           this.drag.end.set(x, y);
 
-          if ( this.logMessages ) console.log(this.constructor.name + ': drag: ');
           for ( let inputListener of this.getSortedListeners() ) {
             inputListener.dispatchEvent({
               type: 'drag',
@@ -80622,7 +80598,6 @@ ENDSEC
     }
 
     onKeyDown(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onKeyDown');
 
       // DELETE
       if ( e.keyCode === KeyCodes.DELETE && this.selection.length > 0 ) {
@@ -80654,7 +80629,6 @@ ENDSEC
     }
 
     onKeyUp(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onKeyUp');
 
       delete this.pressedKeys[e.keyCode];
 
@@ -80662,7 +80636,6 @@ ENDSEC
     }
 
     onDoubleClick(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onDoubleClick');
 
       let consumed = false;
       for ( let hovered of this.hoveredElements ) {
@@ -80691,13 +80664,11 @@ ENDSEC
     }
 
     onMouseClick(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onMouseClick');
 
       e.preventDefault();
     }
 
     onMouseDown(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onMouseDown');
 
       e.preventDefault();
 
@@ -80748,7 +80719,6 @@ ENDSEC
     }
 
     onMouseUp(e) {
-      if ( this.logMessages ) console.log(this.constructor.name + ': onMouseUp');
 
       e.preventDefault();
 
@@ -80787,7 +80757,6 @@ ENDSEC
 
       if ( this.drag ) {
         if ( this.drag.object ) {
-          if ( this.logMessages ) console.log(`${this.constructor.name}: drop ${this.drag.object.name}`);
           this.drag.object.dispatchEvent({
             type: 'drop',
             drag: this.drag,
@@ -80807,7 +80776,6 @@ ENDSEC
         // check for a click
         let clicked = this.hoveredElements.map(h => h.object).find(v => v === this.drag.object) !== undefined;
         if ( clicked ) {
-          if ( this.logMessages ) console.log(`${this.constructor.name}: click ${this.drag.object.name}`);
           this.drag.object.dispatchEvent({
             type: 'click',
             viewer: this.viewer,
@@ -80861,7 +80829,6 @@ ENDSEC
       let hoveredElements = this.getHoveredElements();
       if ( hoveredElements.length > 0 ) {
         let names = hoveredElements.map(h => h.object.name).join(", ");
-        if ( this.logMessages ) console.log(`${this.constructor.name}: onMouseMove; hovered: '${names}'`);
       }
 
       if ( this.drag ) {
@@ -80873,14 +80840,12 @@ ENDSEC
         this.drag.end.set(x, y);
 
         if ( this.drag.object ) {
-          if ( this.logMessages ) console.log(this.constructor.name + ': drag: ' + this.drag.object.name);
           this.drag.object.dispatchEvent({
             type: 'drag',
             drag: this.drag,
             viewer: this.viewer
           });
         } else {
-          if ( this.logMessages ) console.log(this.constructor.name + ': drag: ');
 
           let dragConsumed = false;
           for ( let inputListener of this.getSortedListeners() ) {
@@ -80904,14 +80869,12 @@ ENDSEC
 
         if ( curr !== prev ) {
           if ( curr ) {
-            if ( this.logMessages ) console.log(`${this.constructor.name}: mouseover: ${curr.name}`);
             curr.dispatchEvent({
               type: 'mouseover',
               object: curr,
             });
           }
           if ( prev ) {
-            if ( this.logMessages ) console.log(`${this.constructor.name}: mouseleave: ${prev.name}`);
             prev.dispatchEvent({
               type: 'mouseleave',
               object: prev,
@@ -80948,7 +80911,6 @@ ENDSEC
     onMouseWheel(e) {
       if ( !this.enabled ) return;
 
-      if ( this.logMessages ) console.log(this.constructor.name + ": onMouseWheel");
 
       e.preventDefault();
 
@@ -80983,7 +80945,6 @@ ENDSEC
     startDragging(object, args = null) {
 
       let name = object ? object.name : "no name";
-      if ( this.logMessages ) console.log(`${this.constructor.name}: startDragging: '${name}'`);
 
       this.drag = {
         start: this.mouse.clone(),
@@ -87458,7 +87419,7 @@ ENDSEC
 
   class CesiumControls extends EventDispatcher {
 
-    constructor(viewer, cesiumViewer, projection) {
+    constructor(viewer, cesiumViewer, projection, cesiumLib) {
       super();
 
       this.viewer = viewer;
@@ -87467,6 +87428,7 @@ ENDSEC
 
       this.cesiumViewer = cesiumViewer;
       this.projection = projection;
+      this.Cesium = cesiumLib || window.Cesium;
 
       this.sceneControls = new Scene();
 
@@ -87486,12 +87448,11 @@ ENDSEC
       this._cesiumSSC = cesiumViewer.scene.screenSpaceCameraController;
 
       // Pre-allocated Cesium scratch objects (avoid new per frame)
-      var Cesium = window.Cesium;
-      if ( Cesium ) {
-        this._cScratch1 = new Cesium.Cartesian3();
-        this._cScratch2 = new Cesium.Cartesian3();
-        this._cScratchTarget = new Cesium.Cartesian3();
-        this._cScratchUp = new Cesium.Cartesian3();
+      if ( this.Cesium ) {
+        this._cScratch1 = new this.Cesium.Cartesian3();
+        this._cScratch2 = new this.Cesium.Cartesian3();
+        this._cScratchTarget = new this.Cesium.Cartesian3();
+        this._cScratchUp = new this.Cesium.Cartesian3();
       }
 
       // Reusable arrays for projection calls
@@ -87538,17 +87499,11 @@ ENDSEC
 
       var view = this.scene.view;
       var cam = this._cesiumCamera;
-      var Cesium = window.Cesium;
+      var Cesium = this.Cesium;
 
       if ( !Cesium ) return;
 
-      // Throttled debug logging
-      var now = Date.now();
-      var doLog = false;
-      if ( (now - this._lastLogTime) > 2000 ) {
-        this._lastLogTime = now;
-        doLog = true;
-      }
+
 
       // === Reverse 3-point projection (zero allocations) ===
       var posECEF = cam.positionWC;
@@ -87649,21 +87604,7 @@ ENDSEC
         }
       }
 
-      if ( doLog ) {
-        console.log('=== CesiumControls sync ===');
-        console.log('pos:', pos3.x.toFixed(1), pos3.y.toFixed(1), pos3.z.toFixed(1));
-        console.log('target:', target3.x.toFixed(1), target3.y.toFixed(1), target3.z.toFixed(1));
-        var box = this.scene.getBoundingBox();
-        if ( box && !box.isEmpty() ) {
-          var c = box.getCenter(this._scratchCenter);
-          console.log('PC center:', c.x.toFixed(1), c.y.toFixed(1), c.z.toFixed(1), 'dist:', pos3.distanceTo(c).toFixed(1));
-        }
-        if ( frustum ) {
-          console.log('FOV: fov=' + ((frustum.fov || 0) * 180 / Math.PI).toFixed(1) +
-            ' fovy=' + ((frustum.fovy || 0) * 180 / Math.PI).toFixed(1) +
-            ' potree=' + this.viewer.getFOV().toFixed(1));
-        }
-      }
+
     }
 
     /**
@@ -87675,7 +87616,7 @@ ENDSEC
     flyToPointCloud(duration) {
       if ( duration === undefined ) duration = 2;
 
-      var Cesium = window.Cesium;
+      var Cesium = this.Cesium;
       if ( !Cesium || !this.scene || !this.projection || !this.projection.toMap || !this.projection.toMap.forward ) return;
 
       var box = this.scene.getBoundingBox();
@@ -87722,8 +87663,7 @@ ENDSEC
         duration: duration,
       });
 
-      console.log('CesiumControls: flyTo [' + lon.toFixed(4) + ', ' + lat.toFixed(4) + '] h=' + cameraHeight.toFixed(0) +
-        ' extent=' + horizontalExtent.toFixed(0) + ' fov=' + (fovRad * 180 / Math.PI).toFixed(1));
+
     }
   }
 
@@ -88326,7 +88266,7 @@ ENDSEC
      * @param {Cesium.Viewer} cesiumViewer - initialized Cesium viewer
      * @param {Object} projection - { toMap: { forward }, toScene: { forward } }
      */
-    setCesiumViewer(cesiumViewer, projection) {
+    setCesiumViewer(cesiumViewer, projection, cesiumLib) {
       // === CRITICAL: Lock the toScene projection to the point cloud's UTM zone ===
       // The camera may be at a different longitude than the point cloud,
       // which would cause toScene to pick a different UTM zone and produce
@@ -88334,7 +88274,7 @@ ENDSEC
       // bounding box and lock toScene to always use that zone.
       var lockedProjection = this._lockProjectionZone(projection);
 
-      this.cesiumControls = new CesiumControls(this, cesiumViewer, lockedProjection);
+      this.cesiumControls = new CesiumControls(this, cesiumViewer, lockedProjection, cesiumLib);
       this.cesiumControls.enabled = false;
       this.cesiumControls.setScene(this.scene);
 
@@ -88389,11 +88329,9 @@ ENDSEC
       // Create a LOCKED transformer that always uses this zone
       var lockedTransformer = proj4('EPSG:4326', projString);
 
-      console.log('Potree: locked toScene to UTM zone ' + zone + ' (lon=' + lon.toFixed(2) + ', lat=' + lat.toFixed(2) + ')');
 
       // Verify round-trip accuracy
       var roundTrip = lockedTransformer.forward([lon, lat]);
-      console.log('Potree: round-trip check: original=(' + center.x.toFixed(1) + ',' + center.y.toFixed(1) + ') → (' + roundTrip[0].toFixed(1) + ',' + roundTrip[1].toFixed(1) + ')');
 
       return {
         toMap: projection.toMap,
@@ -88934,7 +88872,7 @@ ENDSEC
       this.isFlipYZ = !this.isFlipYZ;
 
       // TODO flipyz
-      console.log('TODO');
+
     }
 
     setCameraMode(mode) {
@@ -89197,7 +89135,7 @@ ENDSEC
         VRButton.createButton(this.renderer).then(vrButton => {
 
           if ( vrButton == null ) {
-            console.log("VR not supported or active.");
+            console.warn("VR not supported or active.");
 
             return;
           }
@@ -89301,11 +89239,9 @@ ENDSEC
       }
 
       let dropHandler = async (event) => {
-        console.log(event);
         event.preventDefault();
 
         for ( const item of event.dataTransfer.items ) {
-          console.log(item);
 
           if ( item.kind !== "file" ) {
             continue;
@@ -89365,7 +89301,7 @@ ENDSEC
 
     initThree() {
 
-      console.log(`initializing three.js ${REVISION}`);
+
 
       let width = this.renderArea.clientWidth;
       let height = this.renderArea.clientHeight;
@@ -90200,7 +90136,7 @@ ENDSEC
               + ` ${n.toString().padStart(csam)}\n`;
           }
           message += `\n`;
-          console.log(message);
+
 
           performance.clearMarks();
           performance.clearMeasures();
@@ -90372,7 +90308,6 @@ ENDSEC
 
   let lru = new LRU();
 
-  console.log('Potree ' + version.major + '.' + version.minor + version.suffix);
 
   let pointBudget = 1 * 1000 * 1000;
   let framenumber = 0;
