@@ -79225,9 +79225,9 @@ ENDSEC
 
 	var lib = JSON5;
 
-	class Sidebar{
+	class Sidebar {
 
-		constructor(viewer){
+		constructor(viewer) {
 			this.viewer = viewer;
 
 			this.measuringTool = viewer.measuringTool;
@@ -79237,7 +79237,7 @@ ENDSEC
 			this.dom = $("#sidebar_root");
 		}
 
-		createToolIcon(icon, title, callback){
+		createToolIcon(icon, title, callback) {
 			let element = $(`
 			<img src="${icon}"
 				style="width: 32px; height: 32px"
@@ -79250,7 +79250,7 @@ ENDSEC
 			return element;
 		}
 
-		init(){
+		init() {
 
 			this.initAccordion();
 			this.initAppearance();
@@ -79260,13 +79260,13 @@ ENDSEC
 			this.initFilters();
 			this.initClippingTool();
 			this.initSettings();
-			
+
 			$('#potree_version_number').html(Potree.version.major + "." + Potree.version.minor + Potree.version.suffix);
 		}
 
-			
 
-		initToolbar(){
+
+		initToolbar() {
 
 			// ANGLE
 			let elToolbar = $('#tools');
@@ -79281,7 +79281,8 @@ ENDSEC
 						showArea: false,
 						closed: true,
 						maxMarkers: 3,
-						name: 'Angle'});
+						name: 'Angle'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79303,7 +79304,8 @@ ENDSEC
 						showArea: false,
 						closed: true,
 						maxMarkers: 1,
-						name: 'Point'});
+						name: 'Point'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79322,7 +79324,8 @@ ENDSEC
 						showDistances: true,
 						showArea: false,
 						closed: false,
-						name: 'Distance'});
+						name: 'Distance'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79343,7 +79346,8 @@ ENDSEC
 						showArea: false,
 						closed: false,
 						maxMarkers: 2,
-						name: 'Height'});
+						name: 'Height'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79366,7 +79370,8 @@ ENDSEC
 						showEdges: false,
 						closed: false,
 						maxMarkers: 3,
-						name: 'Circle'});
+						name: 'Circle'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79390,7 +79395,8 @@ ENDSEC
 						showAzimuth: true,
 						closed: false,
 						maxMarkers: 2,
-						name: 'Azimuth'});
+						name: 'Azimuth'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79409,7 +79415,8 @@ ENDSEC
 						showDistances: true,
 						showArea: true,
 						closed: true,
-						name: 'Area'});
+						name: 'Area'
+					});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
@@ -79423,7 +79430,7 @@ ENDSEC
 				Potree.resourcePath + '/icons/volume.svg',
 				'[title]tt.volume_measurement',
 				() => {
-					let volume = this.volumeTool.startInsertion(); 
+					let volume = this.volumeTool.startInsertion();
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === volume.uuid);
@@ -79436,8 +79443,8 @@ ENDSEC
 			elToolbar.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/sphere_distances.svg',
 				'[title]tt.volume_measurement',
-				() => { 
-					let volume = this.volumeTool.startInsertion({type: SphereVolume}); 
+				() => {
+					let volume = this.volumeTool.startInsertion({ type: SphereVolume });
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === volume.uuid);
@@ -79451,7 +79458,7 @@ ENDSEC
 				Potree.resourcePath + '/icons/profile.svg',
 				'[title]tt.height_profile',
 				() => {
-					$('#menu_measurements').next().slideDown(); ;
+					$('#menu_measurements').next().slideDown();;
 					let profile = this.profileTool.startInsertion();
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
@@ -79466,7 +79473,7 @@ ENDSEC
 				Potree.resourcePath + '/icons/annotation.svg',
 				'[title]tt.annotation',
 				() => {
-					$('#menu_measurements').next().slideDown(); ;
+					$('#menu_measurements').next().slideDown();;
 					let annotation = this.viewer.annotationTool.startInsertion();
 
 					let annotationsRoot = $("#jstree_scene").jstree().get_json("annotations");
@@ -79488,9 +79495,10 @@ ENDSEC
 
 			{ // SHOW / HIDE Measurements
 				let elShow = $("#measurement_options_show");
-				elShow.selectgroup({title: "Show/Hide labels"});
+				let title = `<span data-i18n="measurements.show_hide_labels">Show/Hide labels</span>`;
+				elShow.selectgroup({ title: title });
 
-				elShow.find("input").click( (e) => {
+				elShow.find("input").click((e) => {
 					const show = e.target.value === "SHOW";
 					this.measuringTool.showLabels = show;
 				});
@@ -79500,12 +79508,12 @@ ENDSEC
 			}
 		}
 
-		initScene(){
+		initScene() {
 
 			let elScene = $("#menu_scene");
 			let elObjects = elScene.next().find("#scene_objects");
 			let elProperties = elScene.next().find("#scene_object_properties");
-			
+
 
 			{
 				let elExport = elScene.next().find("#scene_export");
@@ -79515,58 +79523,58 @@ ENDSEC
 				let potreeIcon = `${Potree.resourcePath}/icons/file_potree.svg`;
 
 				elExport.append(`
-				Export: <br>
+				<span data-i18n="scene.export">Export:</span> <br>
 				<a href="#" download="measure.json"><img name="geojson_export_button" src="${geoJSONIcon}" class="button-icon" style="height: 24px" /></a>
 				<a href="#" download="measure.dxf"><img name="dxf_export_button" src="${dxfIcon}" class="button-icon" style="height: 24px" /></a>
 				<a href="#" download="potree.json5"><img name="potree_export_button" src="${potreeIcon}" class="button-icon" style="height: 24px" /></a>
 			`);
 
 				let elDownloadJSON = elExport.find("img[name=geojson_export_button]").parent();
-				elDownloadJSON.click( (event) => {
+				elDownloadJSON.click((event) => {
 					let scene = this.viewer.scene;
 					let measurements = [...scene.measurements, ...scene.profiles, ...scene.volumes];
 
-					if(measurements.length > 0){
+					if (measurements.length > 0) {
 						let geoJson = GeoJSONExporter.toString(measurements);
 
-						let url = window.URL.createObjectURL(new Blob([geoJson], {type: 'data:application/octet-stream'}));
+						let url = window.URL.createObjectURL(new Blob([geoJson], { type: 'data:application/octet-stream' }));
 						elDownloadJSON.attr('href', url);
-					}else {
+					} else {
 						this.viewer.postError("no measurements to export");
 						event.preventDefault();
 					}
 				});
 
 				let elDownloadDXF = elExport.find("img[name=dxf_export_button]").parent();
-				elDownloadDXF.click( (event) => {
+				elDownloadDXF.click((event) => {
 					let scene = this.viewer.scene;
 					let measurements = [...scene.measurements, ...scene.profiles, ...scene.volumes];
 
-					if(measurements.length > 0){
+					if (measurements.length > 0) {
 						let dxf = DXFExporter.toString(measurements);
 
-						let url = window.URL.createObjectURL(new Blob([dxf], {type: 'data:application/octet-stream'}));
+						let url = window.URL.createObjectURL(new Blob([dxf], { type: 'data:application/octet-stream' }));
 						elDownloadDXF.attr('href', url);
-					}else {
+					} else {
 						this.viewer.postError("no measurements to export");
 						event.preventDefault();
 					}
 				});
 
 				let elDownloadPotree = elExport.find("img[name=potree_export_button]").parent();
-				elDownloadPotree.click( (event) => {
+				elDownloadPotree.click((event) => {
 
 					let data = Potree.saveProject(this.viewer);
 					let dataString = lib.stringify(data, null, "\t");
 
-					let url = window.URL.createObjectURL(new Blob([dataString], {type: 'data:application/octet-stream'}));
+					let url = window.URL.createObjectURL(new Blob([dataString], { type: 'data:application/octet-stream' }));
 					elDownloadPotree.attr('href', url);
 				});
 			}
 
 			let propertiesPanel = new PropertiesPanel(elProperties, this.viewer);
 			propertiesPanel.setScene(this.viewer.scene);
-			
+
 			localStorage.removeItem('jstree');
 
 			let tree = $(`<div id="jstree_scene"></div>`);
@@ -79577,12 +79585,12 @@ ENDSEC
 				'core': {
 					"dblclick_toggle": false,
 					"state": {
-						"checked" : true
+						"checked": true
 					},
 					'check_callback': true,
 					"expand_selected_onload": true
 				},
-				"checkbox" : {
+				"checkbox": {
 					"keep_selected_style": true,
 					"three_state": false,
 					"whole_node": false,
@@ -79591,28 +79599,28 @@ ENDSEC
 			});
 
 			let createNode = (parent, text, icon, object) => {
-				let nodeID = tree.jstree('create_node', parent, { 
-						"text": text, 
-						"icon": icon,
-						"data": object
-					}, 
+				let nodeID = tree.jstree('create_node', parent, {
+					"text": text,
+					"icon": icon,
+					"data": object
+				},
 					"last", false, false);
-				
-				if(object.visible){
+
+				if (object.visible) {
 					tree.jstree('check_node', nodeID);
-				}else {
+				} else {
 					tree.jstree('uncheck_node', nodeID);
 				}
 
 				return nodeID;
 			};
 
-			let pcID = tree.jstree('create_node', "#", { "text": "<b>Point Clouds</b>", "id": "pointclouds"}, "last", false, false);
-			let measurementID = tree.jstree('create_node', "#", { "text": "<b>Measurements</b>", "id": "measurements" }, "last", false, false);
-			let annotationsID = tree.jstree('create_node', "#", { "text": "<b>Annotations</b>", "id": "annotations" }, "last", false, false);
-			let otherID = tree.jstree('create_node', "#", { "text": "<b>Other</b>", "id": "other" }, "last", false, false);
-			let vectorsID = tree.jstree('create_node', "#", { "text": "<b>Vectors</b>", "id": "vectors" }, "last", false, false);
-			let imagesID = tree.jstree('create_node', "#", { "text": "<b> Images</b>", "id": "images" }, "last", false, false);
+			let pcID = tree.jstree('create_node', "#", { "text": "<b data-i18n='tb.point_clouds'>Point Clouds</b>", "id": "pointclouds" }, "last", false, false);
+			let measurementID = tree.jstree('create_node', "#", { "text": "<b data-i18n='tb.measurments_opt'>Measurements</b>", "id": "measurements" }, "last", false, false);
+			let annotationsID = tree.jstree('create_node', "#", { "text": "<b data-i18n='tb.annotations_opt'>Annotations</b>", "id": "annotations" }, "last", false, false);
+			let otherID = tree.jstree('create_node', "#", { "text": "<b data-i18n='tb.other_opt'>Other</b>", "id": "other" }, "last", false, false);
+			let vectorsID = tree.jstree('create_node', "#", { "text": "<b data-i18n='tb.vectors_opt'>Vectors</b>", "id": "vectors" }, "last", false, false);
+			let imagesID = tree.jstree('create_node', "#", { "text": "<b data-i18n='tb.images_opt'> Images</b>", "id": "images" }, "last", false, false);
 
 			tree.jstree("check_node", pcID);
 			tree.jstree("check_node", measurementID);
@@ -79631,7 +79639,7 @@ ENDSEC
 
 				this.viewer.inputHandler.deselectAll();
 
-				if(object instanceof Volume){
+				if (object instanceof Volume) {
 					this.viewer.inputHandler.toggleSelection(object);
 				}
 
@@ -79646,83 +79654,83 @@ ENDSEC
 				propertiesPanel.set(null);
 			});
 
-			tree.on('dblclick','.jstree-anchor', (e) => {
+			tree.on('dblclick', '.jstree-anchor', (e) => {
 
 				let instance = $.jstree.reference(e.target);
 				let node = instance.get_node(e.target);
 				let object = node.data;
 
 				// ignore double click on checkbox
-				if(e.target.classList.contains("jstree-checkbox")){
+				if (e.target.classList.contains("jstree-checkbox")) {
 					return;
 				}
 
-				if(object instanceof PointCloudTree){
+				if (object instanceof PointCloudTree) {
 					let box = this.viewer.getBoundingBox([object]);
 					let node = new Object3D();
 					node.boundingBox = box;
 					this.viewer.zoomTo(node, 1, 500);
-				}else if(object instanceof Measure){
+				} else if (object instanceof Measure) {
 					let points = object.points.map(p => p.position);
 					let box = new Box3().setFromPoints(points);
-					if(box.getSize(new Vector3()).length() > 0){
+					if (box.getSize(new Vector3()).length() > 0) {
 						let node = new Object3D();
 						node.boundingBox = box;
 						this.viewer.zoomTo(node, 2, 500);
 					}
-				}else if(object instanceof Profile){
+				} else if (object instanceof Profile) {
 					let points = object.points;
 					let box = new Box3().setFromPoints(points);
-					if(box.getSize(new Vector3()).length() > 0){
+					if (box.getSize(new Vector3()).length() > 0) {
 						let node = new Object3D();
 						node.boundingBox = box;
 						this.viewer.zoomTo(node, 1, 500);
 					}
-				}else if(object instanceof Volume){
-					
+				} else if (object instanceof Volume) {
+
 					let box = object.boundingBox.clone().applyMatrix4(object.matrixWorld);
 
-					if(box.getSize(new Vector3()).length() > 0){
+					if (box.getSize(new Vector3()).length() > 0) {
 						let node = new Object3D();
 						node.boundingBox = box;
 						this.viewer.zoomTo(node, 1, 500);
 					}
-				}else if(object instanceof Annotation){
+				} else if (object instanceof Annotation) {
 					object.moveHere(this.viewer.scene.getActiveCamera());
-				}else if(object instanceof PolygonClipVolume){
+				} else if (object instanceof PolygonClipVolume) {
 					let dir = object.camera.getWorldDirection(new Vector3());
 					let target;
 
-					if(object.camera instanceof OrthographicCamera){
+					if (object.camera instanceof OrthographicCamera) {
 						dir.multiplyScalar(object.camera.right);
 						target = new Vector3().addVectors(object.camera.position, dir);
 						this.viewer.setCameraMode(CameraMode.ORTHOGRAPHIC);
-					}else if(object.camera instanceof PerspectiveCamera){
+					} else if (object.camera instanceof PerspectiveCamera) {
 						dir.multiplyScalar(this.viewer.scene.view.radius);
 						target = new Vector3().addVectors(object.camera.position, dir);
 						this.viewer.setCameraMode(CameraMode.PERSPECTIVE);
 					}
-					
+
 					this.viewer.scene.view.position.copy(object.camera.position);
 					this.viewer.scene.view.lookAt(target);
-				}else if(object.type === "SpotLight"){
+				} else if (object.type === "SpotLight") {
 					let distance = (object.distance > 0) ? object.distance / 4 : 5 * 1000;
 					let position = object.position;
 					let target = new Vector3().addVectors(
-						position, 
+						position,
 						object.getWorldDirection(new Vector3()).multiplyScalar(distance));
 
 					this.viewer.scene.view.position.copy(object.position);
 					this.viewer.scene.view.lookAt(target);
-				}else if(object instanceof Object3D){
+				} else if (object instanceof Object3D) {
 					let box = new Box3().setFromObject(object);
 
-					if(box.getSize(new Vector3()).length() > 0){
+					if (box.getSize(new Vector3()).length() > 0) {
 						let node = new Object3D();
 						node.boundingBox = box;
 						this.viewer.zoomTo(node, 1, 500);
 					}
-				}else if(object instanceof OrientedImage){
+				} else if (object instanceof OrientedImage) {
 					// TODO zoom to images
 
 					// let box = new THREE.Box3().setFromObject(object);
@@ -79732,9 +79740,9 @@ ENDSEC
 					// 	node.boundingBox = box;
 					// 	this.viewer.zoomTo(node, 1, 500);
 					// }
-				}else if(object instanceof Images360){
+				} else if (object instanceof Images360) {
 					// TODO
-				}else if(object instanceof Geopackage){
+				} else if (object instanceof Geopackage) {
 					// TODO
 				}
 			});
@@ -79742,7 +79750,7 @@ ENDSEC
 			tree.on("uncheck_node.jstree", (e, data) => {
 				let object = data.node.data;
 
-				if(object){
+				if (object) {
 					object.visible = false;
 				}
 			});
@@ -79750,7 +79758,7 @@ ENDSEC
 			tree.on("check_node.jstree", (e, data) => {
 				let object = data.node.data;
 
-				if(object){
+				if (object) {
 					object.visible = true;
 				}
 			});
@@ -79762,9 +79770,9 @@ ENDSEC
 				let node = createNode(pcID, pointcloud.name, cloudIcon, pointcloud);
 
 				pointcloud.addEventListener("visibility_changed", () => {
-					if(pointcloud.visible){
+					if (pointcloud.visible) {
 						tree.jstree('check_node', node);
-					}else {
+					} else {
 						tree.jstree('uncheck_node', node);
 					}
 				});
@@ -79782,9 +79790,9 @@ ENDSEC
 				let node = createNode(measurementID, volume.name, icon, volume);
 
 				volume.addEventListener("visibility_changed", () => {
-					if(volume.visible){
+					if (volume.visible) {
 						tree.jstree('check_node', node);
-					}else {
+					} else {
 						tree.jstree('uncheck_node', node);
 					}
 				});
@@ -79807,7 +79815,7 @@ ENDSEC
 				annotation.addEventListener("annotation_changed", (e) => {
 					let annotationsRoot = $("#jstree_scene").jstree().get_json("annotations");
 					let jsonNode = annotationsRoot.children.find(child => child.data.uuid === annotation.uuid);
-					
+
 					$.jstree.reference(jsonNode.id).rename_node(jsonNode.id, annotation.title);
 				});
 			};
@@ -79823,12 +79831,12 @@ ENDSEC
 				const images = e.images;
 
 				const imagesIcon = `${Potree.resourcePath}/icons/picture.svg`;
-				const node = createNode(imagesID, "images", imagesIcon, images);
+				const node = createNode(imagesID, "<span data-i18n='tb.images_opt'>images</span>", imagesIcon, images);
 
 				images.addEventListener("visibility_changed", () => {
-					if(images.visible){
+					if (images.visible) {
 						tree.jstree('check_node', node);
-					}else {
+					} else {
 						tree.jstree('uncheck_node', node);
 					}
 				});
@@ -79838,12 +79846,12 @@ ENDSEC
 				const images = e.images;
 
 				const imagesIcon = `${Potree.resourcePath}/icons/picture.svg`;
-				const node = createNode(imagesID, "360° images", imagesIcon, images);
+				const node = createNode(imagesID, "<span data-i18n='tb.images360_opt'>360° images</span>", imagesIcon, images);
 
 				images.addEventListener("visibility_changed", () => {
-					if(images.visible){
+					if (images.visible) {
 						tree.jstree('check_node', node);
-					}else {
+					} else {
 						tree.jstree('uncheck_node', node);
 					}
 				});
@@ -79856,15 +79864,15 @@ ENDSEC
 				const tree = $(`#jstree_scene`);
 				const parentNode = "vectors";
 
-				for(const layer of geopackage.node.children){
+				for (const layer of geopackage.node.children) {
 					const name = layer.name;
 
-					let shpPointsID = tree.jstree('create_node', parentNode, { 
-							"text": name, 
-							"icon": geopackageIcon,
-							"object": layer,
-							"data": layer,
-						}, 
+					let shpPointsID = tree.jstree('create_node', parentNode, {
+						"text": name,
+						"icon": geopackageIcon,
+						"object": layer,
+						"data": layer,
+					},
 						"last", false, false);
 					tree.jstree(layer.visible ? "check_node" : "uncheck_node", shpPointsID);
 				}
@@ -79885,28 +79893,28 @@ ENDSEC
 			let onMeasurementRemoved = (e) => {
 				let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 				let jsonNode = measurementsRoot.children.find(child => child.data.uuid === e.measurement.uuid);
-				
+
 				tree.jstree("delete_node", jsonNode.id);
 			};
 
 			let onVolumeRemoved = (e) => {
 				let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 				let jsonNode = measurementsRoot.children.find(child => child.data.uuid === e.volume.uuid);
-				
+
 				tree.jstree("delete_node", jsonNode.id);
 			};
 
 			let onPolygonClipVolumeRemoved = (e) => {
 				let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 				let jsonNode = measurementsRoot.children.find(child => child.data.uuid === e.volume.uuid);
-				
+
 				tree.jstree("delete_node", jsonNode.id);
 			};
 
 			let onProfileRemoved = (e) => {
 				let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 				let jsonNode = measurementsRoot.children.find(child => child.data.uuid === e.profile.uuid);
-				
+
 				tree.jstree("delete_node", jsonNode.id);
 			};
 
@@ -79917,7 +79925,7 @@ ENDSEC
 
 			{
 				let annotationIcon = `${Potree.resourcePath}/icons/annotation.svg`;
-				this.annotationMapping = new Map(); 
+				this.annotationMapping = new Map();
 				this.annotationMapping.set(this.viewer.scene.annotations, annotationsID);
 				this.viewer.scene.annotations.traverseDescendants(annotation => {
 					let parentID = this.annotationMapping.get(annotation.parent);
@@ -79927,40 +79935,40 @@ ENDSEC
 			}
 
 			const scene = this.viewer.scene;
-			for(let pointcloud of scene.pointclouds){
-				onPointCloudAdded({pointcloud: pointcloud});
+			for (let pointcloud of scene.pointclouds) {
+				onPointCloudAdded({ pointcloud: pointcloud });
 			}
 
-			for(let measurement of scene.measurements){
-				onMeasurementAdded({measurement: measurement});
+			for (let measurement of scene.measurements) {
+				onMeasurementAdded({ measurement: measurement });
 			}
 
-			for(let volume of [...scene.volumes, ...scene.polygonClipVolumes]){
-				onVolumeAdded({volume: volume});
+			for (let volume of [...scene.volumes, ...scene.polygonClipVolumes]) {
+				onVolumeAdded({ volume: volume });
 			}
 
-			for(let animation of scene.cameraAnimations){
-				onCameraAnimationAdded({animation: animation});
+			for (let animation of scene.cameraAnimations) {
+				onCameraAnimationAdded({ animation: animation });
 			}
 
-			for(let images of scene.orientedImages){
-				onOrientedImagesAdded({images: images});
+			for (let images of scene.orientedImages) {
+				onOrientedImagesAdded({ images: images });
 			}
 
-			for(let images of scene.images360){
-				onImages360Added({images: images});
+			for (let images of scene.images360) {
+				onImages360Added({ images: images });
 			}
 
-			for(const geopackage of scene.geopackages){
-				onGeopackageAdded({geopackage: geopackage});
+			for (const geopackage of scene.geopackages) {
+				onGeopackageAdded({ geopackage: geopackage });
 			}
 
-			for(let profile of scene.profiles){
-				onProfileAdded({profile: profile});
+			for (let profile of scene.profiles) {
+				onProfileAdded({ profile: profile });
 			}
 
 			{
-				createNode(otherID, "Camera", null, new Camera());
+				createNode(otherID, "<span data-i18n='scene.camera'>Camera</span>", null, new Camera());
 			}
 
 			this.viewer.addEventListener("scene_changed", (e) => {
@@ -79983,7 +79991,7 @@ ENDSEC
 
 		}
 
-		initClippingTool(){
+		initClippingTool() {
 
 
 			this.viewer.addEventListener("cliptask_changed", (event) => {
@@ -79996,9 +80004,10 @@ ENDSEC
 
 			{
 				let elClipTask = $("#cliptask_options");
-				elClipTask.selectgroup({title: "Clip Task"});
+				let title = `<span data-i18n="clipping.clip_task">Clip Task</span>`;
+				elClipTask.selectgroup({ title: title });
 
-				elClipTask.find("input").click( (e) => {
+				elClipTask.find("input").click((e) => {
 					this.viewer.setClipTask(ClipTask[e.target.value]);
 				});
 
@@ -80009,9 +80018,10 @@ ENDSEC
 
 			{
 				let elClipMethod = $("#clipmethod_options");
-				elClipMethod.selectgroup({title: "Clip Method"});
+				let title = `<span data-i18n="clipping.clip_method">Clip Method</span>`;
+				elClipMethod.selectgroup({ title: title });
 
-				elClipMethod.find("input").click( (e) => {
+				elClipMethod.find("input").click((e) => {
 					this.viewer.setClipMethod(ClipMethod[e.target.value]);
 				});
 
@@ -80027,7 +80037,7 @@ ENDSEC
 				Potree.resourcePath + '/icons/clip_volume.svg',
 				'[title]tt.clip_volume',
 				() => {
-					let item = this.volumeTool.startInsertion({clip: true}); 
+					let item = this.volumeTool.startInsertion({ clip: true });
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === item.uuid);
@@ -80041,7 +80051,7 @@ ENDSEC
 				Potree.resourcePath + "/icons/clip-polygon.svg",
 				"[title]tt.clip_polygon",
 				() => {
-					let item = this.viewer.clippingTool.startInsertion({type: "polygon"});
+					let item = this.viewer.clippingTool.startInsertion({ type: "polygon" });
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === item.uuid);
@@ -80057,12 +80067,12 @@ ENDSEC
 					Potree.resourcePath + "/icons/clip-screen.svg",
 					"[title]tt.screen_clip_box",
 					() => {
-						if(!(this.viewer.scene.getActiveCamera() instanceof OrthographicCamera)){
-							this.viewer.postMessage(`Switch to Orthographic Camera Mode before using the Screen-Box-Select tool.`, 
-								{duration: 2000});
+						if (!(this.viewer.scene.getActiveCamera() instanceof OrthographicCamera)) {
+							this.viewer.postMessage(`Switch to Orthographic Camera Mode before using the Screen-Box-Select tool.`,
+								{ duration: 2000 });
 							return;
 						}
-						
+
 						let item = boxSelectTool.startInsertion();
 
 						let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
@@ -80086,7 +80096,7 @@ ENDSEC
 
 		}
 
-		initFilters(){
+		initFilters() {
 			this.initClassificationList();
 			this.initReturnFilters();
 			this.initGPSTimeFilters();
@@ -80094,7 +80104,7 @@ ENDSEC
 
 		}
 
-		initReturnFilters(){
+		initReturnFilters() {
 			let elReturnFilterPanel = $('#return_filter_panel');
 
 			{ // RETURN NUMBER
@@ -80114,7 +80124,7 @@ ENDSEC
 					let [from, to] = this.viewer.filterReturnNumberRange;
 
 					lblReturnNumber[0].innerHTML = `${from} to ${to}`;
-					sldReturnNumber.slider({values: [from, to]});
+					sldReturnNumber.slider({ values: [from, to] });
 				};
 
 				this.viewer.addEventListener('filter_return_number_range_changed', onReturnNumberChanged);
@@ -80139,7 +80149,7 @@ ENDSEC
 					let [from, to] = this.viewer.filterNumberOfReturnsRange;
 
 					lblNumberOfReturns[0].innerHTML = `${from} to ${to}`;
-					sldNumberOfReturns.slider({values: [from, to]});
+					sldNumberOfReturns.slider({ values: [from, to] });
 				};
 
 				this.viewer.addEventListener('filter_number_of_returns_range_changed', onNumberOfReturnsChanged);
@@ -80148,7 +80158,7 @@ ENDSEC
 			}
 		}
 
-		initGPSTimeFilters(){
+		initGPSTimeFilters() {
 
 			let elGPSTimeFilterPanel = $('#gpstime_filter_panel');
 
@@ -80163,7 +80173,7 @@ ENDSEC
 				let initialized = false;
 
 				let initialize = () => {
-					
+
 					let elRangeContainer = $("#gpstime_multilevel_range_container");
 					elRangeContainer[0].prepend(slider.element);
 
@@ -80180,7 +80190,7 @@ ENDSEC
 					let extent = this.viewer.getGpsTimeExtent();
 					let gpsTimeAvailable = extent[0] !== Infinity;
 
-					if(!initialized && gpsTimeAvailable){
+					if (!initialized && gpsTimeAvailable) {
 						initialize();
 					}
 
@@ -80190,7 +80200,7 @@ ENDSEC
 
 
 			{
-				
+
 				const txtGpsTime = elGPSTimeFilterPanel.find("#txtGpsTime");
 				const btnFindGpsTime = elGPSTimeFilterPanel.find("#btnFindGpsTime");
 
@@ -80199,12 +80209,12 @@ ENDSEC
 				txtGpsTime.on("input", (e) => {
 					const str = txtGpsTime.val();
 
-					if(!isNaN(str)){
+					if (!isNaN(str)) {
 						const value = parseFloat(str);
 						targetTime = value;
 
 						txtGpsTime.css("background-color", "");
-					}else {
+					} else {
 						targetTime = null;
 
 						txtGpsTime.css("background-color", "#ff9999");
@@ -80212,9 +80222,9 @@ ENDSEC
 
 				});
 
-				btnFindGpsTime.click( () => {
-					
-					if(targetTime !== null){
+				btnFindGpsTime.click(() => {
+
+					if (targetTime !== null) {
 						viewer.moveToGpsTimeVicinity(targetTime);
 					}
 				});
@@ -80247,12 +80257,12 @@ ENDSEC
 				this.viewer.addEventListener("update", (e) => {
 					let extent = this.viewer.filterPointSourceIDRange;
 
-					if(!initialized){
+					if (!initialized) {
 						initialize();
 
 						slider.setValues(extent);
 					}
-					
+
 				});
 			}
 
@@ -80289,7 +80299,7 @@ ENDSEC
 
 		}
 
-		initClassificationList(){
+		initClassificationList() {
 			let elClassificationList = $('#classificationList');
 
 			let addClassificationItem = (code, name) => {
@@ -80316,7 +80326,7 @@ ENDSEC
 					this.viewer.setClassificationVisibility(code, event.target.checked);
 				});
 
-				let defaultColor = classification.color.map(c => c *  255).join(", ");
+				let defaultColor = classification.color.map(c => c * 255).join(", ");
 				defaultColor = `rgb(${defaultColor})`;
 
 
@@ -80347,7 +80357,7 @@ ENDSEC
 				<li>
 					<label style="whitespace: nowrap">
 						<input id="toggleClassificationFilters" type="checkbox" checked/>
-						<span>show/hide all</span>
+						<span data-i18n="filters.show_hide_all">show/hide all</span>
 					</label>
 				</li>
 			`);
@@ -80361,19 +80371,19 @@ ENDSEC
 				elClassificationList.append(element);
 			};
 
-			const addInvertButton = () => { 
+			const addInvertButton = () => {
 				const element = $(`
 				<li>
-					<input type="button" value="invert" />
+					<input type="button" value="invert" data-i18n="[value]filters.invert" />
 				</li>
 			`);
 
 				let elInput = element.find('input');
 
-				elInput.click( () => {
+				elInput.click(() => {
 					const classifications = this.viewer.classifications;
-		
-					for(let key of Object.keys(classifications)){
+
+					for (let key of Object.keys(classifications)) {
 						let value = classifications[key];
 						this.viewer.setClassificationVisibility(key, !value.visible);
 					}
@@ -80400,7 +80410,7 @@ ENDSEC
 			this.viewer.addEventListener("classification_visibility_changed", () => {
 
 				{ // set checked state of classification buttons
-					for(const classID of Object.keys(this.viewer.classifications)){
+					for (const classID of Object.keys(this.viewer.classifications)) {
 						const classValue = this.viewer.classifications[classID];
 
 						let elItem = elClassificationList.find(`#chkClassification_${classID}`);
@@ -80411,8 +80421,8 @@ ENDSEC
 				{ // set checked state of toggle button based on state of all other buttons
 					let numVisible = 0;
 					let numItems = 0;
-					for(const key of Object.keys(this.viewer.classifications)){
-						if(this.viewer.classifications[key].visible){
+					for (const key of Object.keys(this.viewer.classifications)) {
+						if (this.viewer.classifications[key].visible) {
 							numVisible++;
 						}
 						numItems++;
@@ -80425,8 +80435,8 @@ ENDSEC
 			});
 		}
 
-		initAccordion(){
-			$('.accordion > h3').each(function(){
+		initAccordion() {
+			$('.accordion > h3').each(function () {
 				let header = $(this);
 				let content = $(this).next();
 
@@ -80449,23 +80459,24 @@ ENDSEC
 				["SE", "se"],
 				["ZH", "zh"],
 				["IT", "it"],
-				["CA", "ca"]
+				["CA", "ca"],
+				["VI", "vi"]
 			];
 
 			let elLanguages = $('#potree_languages');
-			for(let i = 0; i < languages.length; i++){
+			for (let i = 0; i < languages.length; i++) {
 				let [key, value] = languages[i];
 				let element = $(`<a>${key}</a>`);
 				element.click(() => this.viewer.setLanguage(value));
 
-				if(i === 0){
+				if (i === 0) {
 					element.css("margin-left", "30px");
 				}
-				
+
 				elLanguages.append(element);
 
-				if(i < languages.length - 1){
-					elLanguages.append($(document.createTextNode(' - ')));	
+				if (i < languages.length - 1) {
+					elLanguages.append($(document.createTextNode(' - ')));
 				}
 			}
 
@@ -80477,7 +80488,7 @@ ENDSEC
 			// $("#menu_tools").next().show()
 		}
 
-		initAppearance(){
+		initAppearance() {
 
 			const sldPointBudget = this.dom.find('#sldPointBudget');
 
@@ -80523,12 +80534,12 @@ ENDSEC
 
 			this.viewer.addEventListener('point_budget_changed', (event) => {
 				$('#lblPointBudget')[0].innerHTML = Utils.addCommas(this.viewer.getPointBudget());
-				sldPointBudget.slider({value: this.viewer.getPointBudget()});
+				sldPointBudget.slider({ value: this.viewer.getPointBudget() });
 			});
 
 			this.viewer.addEventListener('fov_changed', (event) => {
 				$('#lblFOV')[0].innerHTML = parseInt(this.viewer.getFOV());
-				$('#sldFOV').slider({value: this.viewer.getFOV()});
+				$('#sldFOV').slider({ value: this.viewer.getFOV() });
 			});
 
 			this.viewer.addEventListener('use_edl_changed', (event) => {
@@ -80537,12 +80548,12 @@ ENDSEC
 
 			this.viewer.addEventListener('edl_radius_changed', (event) => {
 				$('#lblEDLRadius')[0].innerHTML = this.viewer.getEDLRadius().toFixed(1);
-				$('#sldEDLRadius').slider({value: this.viewer.getEDLRadius()});
+				$('#sldEDLRadius').slider({ value: this.viewer.getEDLRadius() });
 			});
 
 			this.viewer.addEventListener('edl_strength_changed', (event) => {
 				$('#lblEDLStrength')[0].innerHTML = this.viewer.getEDLStrength().toFixed(1);
-				$('#sldEDLStrength').slider({value: this.viewer.getEDLStrength()});
+				$('#sldEDLStrength').slider({ value: this.viewer.getEDLStrength() });
 			});
 
 			this.viewer.addEventListener('background_changed', (event) => {
@@ -80554,12 +80565,12 @@ ENDSEC
 			$('#lblEDLRadius')[0].innerHTML = this.viewer.getEDLRadius().toFixed(1);
 			$('#lblEDLStrength')[0].innerHTML = this.viewer.getEDLStrength().toFixed(1);
 			$('#chkEDLEnabled')[0].checked = this.viewer.getEDLEnabled();
-			
+
 			{
 				let elBackground = $(`#background_options`);
 				elBackground.selectgroup();
 
-				elBackground.find("input").click( (e) => {
+				elBackground.find("input").click((e) => {
 					this.viewer.setBackground(e.target.value);
 				});
 
@@ -80567,12 +80578,12 @@ ENDSEC
 				$(`input[name=background_options][value=${currentBackground}]`).trigger("click");
 			}
 
-			$('#chkEDLEnabled').click( () => {
+			$('#chkEDLEnabled').click(() => {
 				this.viewer.setEDLEnabled($('#chkEDLEnabled').prop("checked"));
 			});
 		}
 
-		initNavigation(){
+		initNavigation() {
 			let elNavigation = $('#navigation');
 			let sldMoveSpeed = $('#sldMoveSpeed');
 			let lblMoveSpeed = $('#lblMoveSpeed');
@@ -80595,7 +80606,7 @@ ENDSEC
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/helicopter_controls.svg',
 				'[title]tt.heli_control',
-				() => { 
+				() => {
 					this.viewer.setControls(this.viewer.fpControls);
 					this.viewer.fpControls.lockElevation = true;
 				}
@@ -80616,7 +80627,7 @@ ENDSEC
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/navigation_cube.svg",
 				"[title]tt.navigation_cube_control",
-				() => {this.viewer.toggleNavigationCube();}
+				() => { this.viewer.toggleNavigationCube(); }
 			));
 
 			elNavigation.append(this.createToolIcon(
@@ -80645,37 +80656,37 @@ ENDSEC
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/left.svg",
 				"[title]tt.left_view_control",
-				() => {this.viewer.setLeftView();}
+				() => { this.viewer.setLeftView(); }
 			));
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/right.svg",
 				"[title]tt.right_view_control",
-				() => {this.viewer.setRightView();}
+				() => { this.viewer.setRightView(); }
 			));
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/front.svg",
 				"[title]tt.front_view_control",
-				() => {this.viewer.setFrontView();}
+				() => { this.viewer.setFrontView(); }
 			));
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/back.svg",
 				"[title]tt.back_view_control",
-				() => {this.viewer.setBackView();}
+				() => { this.viewer.setBackView(); }
 			));
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/top.svg",
 				"[title]tt.top_view_control",
-				() => {this.viewer.setTopView();}
+				() => { this.viewer.setTopView(); }
 			));
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/bottom.svg",
 				"[title]tt.bottom_view_control",
-				() => {this.viewer.setBottomView();}
+				() => { this.viewer.setBottomView(); }
 			));
 
 
@@ -80684,13 +80695,14 @@ ENDSEC
 
 			let elCameraProjection = $(`
 			<selectgroup id="camera_projection_options">
-				<option id="camera_projection_options_perspective" value="PERSPECTIVE">Perspective</option>
-				<option id="camera_projection_options_orthigraphic" value="ORTHOGRAPHIC">Orthographic</option>
+				<option id="camera_projection_options_perspective" value="PERSPECTIVE" data-i18n="navigation.perspective">Perspective</option>
+				<option id="camera_projection_options_orthigraphic" value="ORTHOGRAPHIC" data-i18n="navigation.orthographic">Orthographic</option>
 			</selectgroup>
 		`);
 			elNavigation.append(elCameraProjection);
-			elCameraProjection.selectgroup({title: "Camera Projection"});
-			elCameraProjection.find("input").click( (e) => {
+			let title = `<span data-i18n="navigation.camera_projection">Camera Projection</span>`;
+			elCameraProjection.selectgroup({ title: title });
+			elCameraProjection.find("input").click((e) => {
 				this.viewer.setCameraMode(CameraMode[e.target.value]);
 			});
 			let cameraMode = Object.keys(CameraMode)
@@ -80717,14 +80729,14 @@ ENDSEC
 
 			this.viewer.addEventListener('move_speed_changed', (event) => {
 				lblMoveSpeed.html(this.viewer.getMoveSpeed().toFixed(1));
-				sldMoveSpeed.slider({value: toExpSpeed(this.viewer.getMoveSpeed())});
+				sldMoveSpeed.slider({ value: toExpSpeed(this.viewer.getMoveSpeed()) });
 			});
 
 			lblMoveSpeed.html(this.viewer.getMoveSpeed().toFixed(1));
 		}
 
 
-		initSettings(){
+		initSettings() {
 
 			{
 				$('#sldMinNodeSize').slider({
@@ -80737,19 +80749,20 @@ ENDSEC
 
 				this.viewer.addEventListener('minnodesize_changed', (event) => {
 					$('#lblMinNodeSize').html(parseInt(this.viewer.getMinNodeSize()));
-					$('#sldMinNodeSize').slider({value: this.viewer.getMinNodeSize()});
+					$('#sldMinNodeSize').slider({ value: this.viewer.getMinNodeSize() });
 				});
 				$('#lblMinNodeSize').html(parseInt(this.viewer.getMinNodeSize()));
 			}
 
 			{
 				let elSplatQuality = $("#splat_quality_options");
-				elSplatQuality.selectgroup({title: "Splat Quality"});
+				let title = `<span data-i18n="appearance.splat_quality">Splat Quality</span>`;
+				elSplatQuality.selectgroup({ title: title });
 
-				elSplatQuality.find("input").click( (e) => {
-					if(e.target.value === "standard"){
+				elSplatQuality.find("input").click((e) => {
+					if (e.target.value === "standard") {
 						this.viewer.useHQ = false;
-					}else if(e.target.value === "hq"){
+					} else if (e.target.value === "hq") {
 						this.viewer.useHQ = true;
 					}
 				});
@@ -89241,7 +89254,7 @@ ENDSEC
 				i18n.init({
 					lng: 'en',
 					resGetPath: Potree.resourcePath + '/lang/__lng__/__ns__.json',
-					preload: ['en', 'fr', 'de', 'jp', 'se', 'es', 'zh', 'it','ca'],
+					preload: ['en', 'fr', 'de', 'jp', 'se', 'es', 'zh', 'it','ca', 'vi'],
 					getAsync: true,
 					debug: false
 				}, function (t) {
@@ -90386,47 +90399,47 @@ ENDSEC
 		if (exports.scriptPath.slice(-1) === '/') {
 			exports.scriptPath = exports.scriptPath.slice(0, -1);
 		}
-	} else if(({ url: (typeof document === 'undefined' ? new (require('u' + 'rl').URL)('file:' + __filename).href : (document.currentScript && document.currentScript.src || new URL('potree.js', document.baseURI).href)) })){
+	} else if (({ url: (typeof document === 'undefined' ? new (require('u' + 'rl').URL)('file:' + __filename).href : (document.currentScript && document.currentScript.src || new URL('potree.js', document.baseURI).href)) })) {
 		exports.scriptPath = new URL((typeof document === 'undefined' ? new (require('u' + 'rl').URL)('file:' + __filename).href : (document.currentScript && document.currentScript.src || new URL('potree.js', document.baseURI).href)) + "/..").href;
 		if (exports.scriptPath.slice(-1) === '/') {
 			exports.scriptPath = exports.scriptPath.slice(0, -1);
 		}
-	}else {
+	} else {
 		console.error('Potree was unable to find its script path using document.currentScript. Is Potree included with a script tag? Does your browser support this function?');
 	}
 
 	let resourcePath = exports.scriptPath + '/resources';
 
 
-	function loadPointCloud$1(path, name, callback){
-		let loaded = function(e){
+	function loadPointCloud$1(path, name, callback) {
+		let loaded = function (e) {
 			e.pointcloud.name = name;
 			callback(e);
 		};
 
-		let promise = new Promise( resolve => {
+		let promise = new Promise(resolve => {
 
 			// load pointcloud
-			if (!path){
+			if (!path) {
 				// TODO: callback? comment? Hello? Bueller? Anyone?
 			} else if (path.includes('ept.json')) {
-				EptLoader.load(path, function(geometry) {
+				EptLoader.load(path, function (geometry) {
 					if (!geometry) {
 						console.error(new Error(`failed to load point cloud from URL: ${path}`));
 					}
 					else {
 						let pointcloud = new PointCloudOctree(geometry);
-						resolve({type: 'pointcloud_loaded', pointcloud: pointcloud});
+						resolve({ type: 'pointcloud_loaded', pointcloud: pointcloud });
 					}
 				});
 			} else if (path.includes('.copc.laz')) {
-				CopcLoader.load(path, function(geometry) {
+				CopcLoader.load(path, function (geometry) {
 					if (!geometry) {
 						console.error(new Error(`failed to load point cloud from URL: ${path}`));
 					}
 					else {
 						let pointcloud = new PointCloudOctree(geometry);
-						resolve({type: 'pointcloud_loaded', pointcloud: pointcloud});
+						resolve({ type: 'pointcloud_loaded', pointcloud: pointcloud });
 					}
 				});
 			} else if (path.indexOf('cloud.js') > 0) {
@@ -90437,16 +90450,16 @@ ENDSEC
 					} else {
 						let pointcloud = new PointCloudOctree(geometry);
 						// loaded(pointcloud);
-						resolve({type: 'pointcloud_loaded', pointcloud: pointcloud});
+						resolve({ type: 'pointcloud_loaded', pointcloud: pointcloud });
 					}
 				});
 			} else if (path.indexOf('metadata.json') > 0) {
 				Potree.OctreeLoader.load(path).then(e => {
 					let geometry = e.geometry;
 
-					if(!geometry){
+					if (!geometry) {
 						console.error(new Error(`failed to load point cloud from URL: ${path}`));
-					}else {
+					} else {
 						let pointcloud = new PointCloudOctree(geometry);
 
 						let aPosition = pointcloud.getAttribute("position");
@@ -90458,7 +90471,7 @@ ENDSEC
 						];
 
 						// loaded(pointcloud);
-						resolve({type: 'pointcloud_loaded', pointcloud: pointcloud});
+						resolve({ type: 'pointcloud_loaded', pointcloud: pointcloud });
 					}
 				});
 
@@ -90469,7 +90482,7 @@ ENDSEC
 					} else {
 						let pointcloud = new PointCloudOctree(geometry);
 						// loaded(pointcloud);
-						resolve({type: 'pointcloud_loaded', pointcloud: pointcloud});
+						resolve({ type: 'pointcloud_loaded', pointcloud: pointcloud });
 					}
 				});
 			} else if (path.indexOf('.vpc') > 0) {
@@ -90480,7 +90493,7 @@ ENDSEC
 					} else {
 						let pointcloud = new PointCloudArena4D(geometry);
 						// loaded(pointcloud);
-						resolve({type: 'pointcloud_loaded', pointcloud: pointcloud});
+						resolve({ type: 'pointcloud_loaded', pointcloud: pointcloud });
 					}
 				});
 			} else {
@@ -90489,20 +90502,20 @@ ENDSEC
 			}
 		});
 
-		if(callback){
+		if (callback) {
 			promise.then(pointcloud => {
 				loaded(pointcloud);
 			});
-		}else {
+		} else {
 			return promise;
 		}
 	};
 
 
 	// add selectgroup
-	(function($){
+	(function ($) {
 		$.fn.extend({
-			selectgroup: function(args = {}){
+			selectgroup: function (args = {}) {
 
 				let elGroup = $(this);
 				let rootID = elGroup.prop("id");
@@ -90514,22 +90527,24 @@ ENDSEC
 					let buttonID = $(value).prop("id");
 					let label = $(value).html();
 					let optionValue = $(value).prop("value");
+					let dataI18n = $(value).attr("data-i18n");
+					let i18nAttr = dataI18n ? `data-i18n="${dataI18n}"` : "";
 
 					let elButton = $(`
 					<span style="flex-grow: 1; display: inherit">
-					<label for="${buttonID}" class="ui-button" style="width: 100%; padding: .4em .1em">${label}</label>
+					<label for="${buttonID}" ${i18nAttr} class="ui-button" style="width: 100%; padding: .4em .1em">${label}</label>
 					<input type="radio" name="${groupID}" id="${buttonID}" value="${optionValue}" style="display: none"/>
 					</span>
 				`);
 					let elLabel = elButton.find("label");
 					let elInput = elButton.find("input");
 
-					elInput.change( () => {
+					elInput.change(() => {
 						elGroup.find("label").removeClass("ui-state-active");
 						elGroup.find("label").addClass("ui-state-default");
-						if(elInput.is(":checked")){
+						if (elInput.is(":checked")) {
 							elLabel.addClass("ui-state-active");
-						}else {
+						} else {
 							//elLabel.addClass("ui-state-default");
 						}
 					});
@@ -90547,21 +90562,21 @@ ENDSEC
 			`);
 
 				let elButtonContainer = elFieldset.find("span");
-				for(let elButton of elButtons){
+				for (let elButton of elButtons) {
 					elButtonContainer.append(elButton);
 				}
 
-				elButtonContainer.find("label").each( (index, value) => {
+				elButtonContainer.find("label").each((index, value) => {
 					$(value).css("margin", "0px");
 					$(value).css("border-radius", "0px");
 					$(value).css("border", "1px solid black");
 					$(value).css("border-left", "none");
 				});
-				elButtonContainer.find("label:first").each( (index, value) => {
+				elButtonContainer.find("label:first").each((index, value) => {
 					$(value).css("border-radius", "4px 0px 0px 4px");
 
 				});
-				elButtonContainer.find("label:last").each( (index, value) => {
+				elButtonContainer.find("label:last").each((index, value) => {
 					$(value).css("border-radius", "0px 4px 4px 0px");
 					$(value).css("border-left", "none");
 				});
