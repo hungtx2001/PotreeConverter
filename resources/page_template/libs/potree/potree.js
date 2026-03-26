@@ -57112,6 +57112,499 @@
 
   PointCloudCopcGeometryNode.IDCount = 0;
 
+  /**
+   *
+   * code adapted from three.js BoxHelper.js
+   * https://github.com/mrdoob/three.js/blob/dev/src/helpers/BoxHelper.js
+   *
+   * @author mrdoob / http://mrdoob.com/
+   * @author Mugen87 / http://github.com/Mugen87
+   * @author mschuetz / http://potree.org
+   */
+
+  class Box3Helper$1 extends LineSegments {
+    constructor(box, color) {
+      if ( color === undefined ) color = 0xffff00;
+
+      let indices = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7]);
+      let positions = new Float32Array([
+        box.min.x, box.min.y, box.min.z,
+        box.max.x, box.min.y, box.min.z,
+        box.max.x, box.min.y, box.max.z,
+        box.min.x, box.min.y, box.max.z,
+        box.min.x, box.max.y, box.min.z,
+        box.max.x, box.max.y, box.min.z,
+        box.max.x, box.max.y, box.max.z,
+        box.min.x, box.max.y, box.max.z
+      ]);
+
+      let geometry = new BufferGeometry();
+      geometry.setIndex(new BufferAttribute(indices, 1));
+      geometry.setAttribute('position', new BufferAttribute(positions, 3));
+
+      let material = new LineBasicMaterial({color: color});
+
+      super(geometry, material);
+    }
+  }
+
+  // --- Visibility cache state ---
+  let _cachedCameraMatrix = new Matrix4();
+  let _cachedProjectionMatrix = new Matrix4();
+  let _cachedPointBudget = -1;
+  let _cachedPointcloudCount = -1;
+  let _cachedResult = null;
+
+  // Dirty flag — must be set to true when new nodes finish loading
+  // or when pointclouds are added/removed.
+  exports.visibilityDirty = true;
+  function setVisibilityDirty() { exports.visibilityDirty = true; }
+
+  // --- Pre-allocated objects for clip box intersection (avoids ~1100 allocs/frame) ---
+  let _cbPcWorldInv = null;
+  let _cbPx, _cbNx, _cbPy, _cbNy, _cbPz, _cbNz;
+  let _cbPxN, _cbNxN, _cbPyN, _cbNyN, _cbPzN, _cbNzN;
+  let _cbPxPlane, _cbNxPlane, _cbPyPlane, _cbNyPlane, _cbPzPlane, _cbNzPlane;
+  let _cbFrustum;
+
+  function updatePointClouds(pointclouds, camera, renderer) {
+
+    for ( let pointcloud of pointclouds ) {
+      let start = performance.now();
+
+      for ( let profileRequest of pointcloud.profileRequests ) {
+        profileRequest.update();
+
+        let duration = performance.now() - start;
+        if ( duration > 5 ) {
+          break;
+        }
+      }
+
+      let duration = performance.now() - start;
+    }
+
+    let result = updateVisibility(pointclouds, camera, renderer);
+
+    for ( let pointcloud of pointclouds ) {
+      pointcloud.updateMaterial(pointcloud.material, pointcloud.visibleNodes, camera, renderer);
+      pointcloud.updateVisibleBounds();
+    }
+
+    exports.lru.freeMemory();
+
+    return result;
+  }
+
+
+  // --- Pre-allocated objects to avoid GC pressure in updateVisibilityStructures ---
+  let _frustum = new Frustum();
+  let _fm = new Matrix4();
+  let _worldI = new Matrix4();
+  let _camMatrixObject = new Matrix4();
+  let _camObjPos = new Vector3();
+
+  function updateVisibilityStructures(pointclouds, camera, renderer) {
+    let frustums = [];
+    let camObjPositions = [];
+    let priorityQueue = new BinaryHeap(function (x) {
+      return 1 / x.weight;
+    });
+
+    for ( let i = 0; i < pointclouds.length; i++ ) {
+      let pointcloud = pointclouds[i];
+
+      if ( !pointcloud.initialized() ) {
+        continue;
+      }
+
+      pointcloud.numVisibleNodes = 0;
+      pointcloud.numVisiblePoints = 0;
+      pointcloud.deepestVisibleLevel = 0;
+      pointcloud.visibleNodes = [];
+      pointcloud.visibleGeometry = [];
+
+      // frustum in object space — reuse pre-allocated objects
+      camera.updateMatrixWorld();
+      let viewI = camera.matrixWorldInverse;
+      let world = pointcloud.matrixWorld;
+      let proj = camera.projectionMatrix;
+
+      _fm.identity().multiply(proj).multiply(viewI).multiply(world);
+      _frustum.setFromProjectionMatrix(_fm);
+      // Must clone for storage since we reuse _frustum
+      let frustum = _frustum.clone();
+      frustums.push(frustum);
+
+      // camera position in object space — reuse pre-allocated objects
+      _worldI.copy(world).invert();
+      _camMatrixObject.identity().multiply(_worldI).multiply(camera.matrixWorld);
+      _camObjPos.setFromMatrixPosition(_camMatrixObject);
+      camObjPositions.push(_camObjPos.clone());
+
+      if ( pointcloud.visible && pointcloud.root !== null ) {
+        priorityQueue.push({pointcloud: i, node: pointcloud.root, weight: Number.MAX_VALUE});
+      }
+
+      // hide all previously visible nodes
+      // if(pointcloud.root instanceof PointCloudOctreeNode){
+      //	pointcloud.hideDescendants(pointcloud.root.sceneNode);
+      // }
+      if ( pointcloud.root.isTreeNode() ) {
+        pointcloud.hideDescendants(pointcloud.root.sceneNode);
+      }
+
+      for ( let j = 0; j < pointcloud.boundingBoxNodes.length; j++ ) {
+        pointcloud.boundingBoxNodes[j].visible = false;
+      }
+    }
+
+    return {
+      'frustums': frustums,
+      'camObjPositions': camObjPositions,
+      'priorityQueue': priorityQueue
+    };
+  }
+
+
+  function updateVisibility(pointclouds, camera, renderer) {
+
+    // --- Camera-dirty visibility cache ---
+    // Skip full octree traversal if camera hasn't moved and no new data loaded.
+    let cameraChanged = !_cachedCameraMatrix.equals(camera.matrixWorldInverse)
+      || !_cachedProjectionMatrix.equals(camera.projectionMatrix);
+    let configChanged = _cachedPointBudget !== Potree.pointBudget
+      || _cachedPointcloudCount !== pointclouds.length;
+
+    if (!cameraChanged && !configChanged && !exports.visibilityDirty && _cachedResult) {
+      // Re-touch LRU for cached visible nodes to keep them alive
+      for (let node of _cachedResult.visibleNodes) {
+        if (node.isTreeNode && node.isTreeNode()) {
+          exports.lru.touch(node.geometryNode);
+        }
+      }
+      return _cachedResult;
+    }
+
+    let numVisibleNodes = 0;
+    let numVisiblePoints = 0;
+
+    let numVisiblePointsInPointclouds = new Map(pointclouds.map(pc => [pc, 0]));
+
+    let visibleNodes = [];
+    let visibleGeometry = [];
+    let unloadedGeometry = [];
+
+    let lowestSpacing = Infinity;
+
+    // calculate object space frustum and cam pos and setup priority queue
+    let s = updateVisibilityStructures(pointclouds, camera, renderer);
+    let frustums = s.frustums;
+    let camObjPositions = s.camObjPositions;
+    let priorityQueue = s.priorityQueue;
+
+    let loadedToGPUThisFrame = 0;
+    let uploadStartTime = performance.now();
+
+    let domWidth = renderer.domElement.clientWidth;
+    let domHeight = renderer.domElement.clientHeight;
+
+    // check if pointcloud has been transformed
+    // some code will only be executed if changes have been detected
+    if ( !Potree._pointcloudTransformVersion ) {
+      Potree._pointcloudTransformVersion = new Map();
+    }
+    let pointcloudTransformVersion = Potree._pointcloudTransformVersion;
+    for ( let pointcloud of pointclouds ) {
+
+      if ( !pointcloud.visible ) {
+        continue;
+      }
+
+      pointcloud.updateMatrixWorld();
+
+      if ( !pointcloudTransformVersion.has(pointcloud) ) {
+        pointcloudTransformVersion.set(pointcloud, {number: 0, transform: pointcloud.matrixWorld.clone()});
+      } else {
+        let version = pointcloudTransformVersion.get(pointcloud);
+
+        if ( !version.transform.equals(pointcloud.matrixWorld) ) {
+          version.number++;
+          version.transform.copy(pointcloud.matrixWorld);
+
+          pointcloud.dispatchEvent({
+            type: "transformation_changed",
+            target: pointcloud
+          });
+        }
+      }
+    }
+
+    while ( priorityQueue.size() > 0 ) {
+      let element = priorityQueue.pop();
+      let node = element.node;
+      let parent = element.parent;
+      let pointcloud = pointclouds[element.pointcloud];
+
+      // { // restrict to certain nodes for debugging
+      //	let allowedNodes = ["r", "r0", "r4"];
+      //	if(!allowedNodes.includes(node.name)){
+      //		continue;
+      //	}
+      // }
+
+      let box = node.getBoundingBox();
+      let frustum = frustums[element.pointcloud];
+      let camObjPos = camObjPositions[element.pointcloud];
+
+      let insideFrustum = frustum.intersectsBox(box);
+      let maxLevel = pointcloud.maxLevel || Infinity;
+      let level = node.getLevel();
+      let visible = insideFrustum;
+      visible = visible && !(numVisiblePoints + node.getNumPoints() > Potree.pointBudget);
+      visible = visible && !(numVisiblePointsInPointclouds.get(pointcloud) + node.getNumPoints() > pointcloud.pointBudget);
+      visible = visible && level < maxLevel;
+      visible = visible || node.getLevel() <= 2;
+
+      let clipBoxes = pointcloud.material.clipBoxes;
+      if ( true && clipBoxes.length > 0 ) {
+
+        let numIntersecting = 0;
+        let numIntersectionVolumes = 0;
+
+        for ( let clipBox of clipBoxes ) {
+
+          // Reuse pre-allocated objects to avoid massive GC pressure
+          // (was ~22 THREE.js objects per node × clipBox per frame)
+          if ( !_cbPcWorldInv ) {
+            _cbPcWorldInv = new Matrix4();
+            _cbPx  = new Vector3(); _cbNx  = new Vector3();
+            _cbPy  = new Vector3(); _cbNy  = new Vector3();
+            _cbPz  = new Vector3(); _cbNz  = new Vector3();
+            _cbPxN = new Vector3(); _cbNxN = new Vector3();
+            _cbPyN = new Vector3(); _cbNyN = new Vector3();
+            _cbPzN = new Vector3(); _cbNzN = new Vector3();
+            _cbPxPlane = new Plane(); _cbNxPlane = new Plane();
+            _cbPyPlane = new Plane(); _cbNyPlane = new Plane();
+            _cbPzPlane = new Plane(); _cbNzPlane = new Plane();
+            _cbFrustum = new Frustum();
+          }
+
+          _cbPcWorldInv.copy(pointcloud.matrixWorld).invert();
+
+          _cbPx.set(+0.5, 0, 0).applyMatrix4(_cbPcWorldInv);
+          _cbNx.set(-0.5, 0, 0).applyMatrix4(_cbPcWorldInv);
+          _cbPy.set(0, +0.5, 0).applyMatrix4(_cbPcWorldInv);
+          _cbNy.set(0, -0.5, 0).applyMatrix4(_cbPcWorldInv);
+          _cbPz.set(0, 0, +0.5).applyMatrix4(_cbPcWorldInv);
+          _cbNz.set(0, 0, -0.5).applyMatrix4(_cbPcWorldInv);
+
+          _cbPxN.subVectors(_cbNx, _cbPx).normalize();
+          _cbNxN.copy(_cbPxN).multiplyScalar(-1);
+          _cbPyN.subVectors(_cbNy, _cbPy).normalize();
+          _cbNyN.copy(_cbPyN).multiplyScalar(-1);
+          _cbPzN.subVectors(_cbNz, _cbPz).normalize();
+          _cbNzN.copy(_cbPzN).multiplyScalar(-1);
+
+          _cbPxPlane.setFromNormalAndCoplanarPoint(_cbPxN, _cbPx);
+          _cbNxPlane.setFromNormalAndCoplanarPoint(_cbNxN, _cbNx);
+          _cbPyPlane.setFromNormalAndCoplanarPoint(_cbPyN, _cbPy);
+          _cbNyPlane.setFromNormalAndCoplanarPoint(_cbNyN, _cbNy);
+          _cbPzPlane.setFromNormalAndCoplanarPoint(_cbPzN, _cbPz);
+          _cbNzPlane.setFromNormalAndCoplanarPoint(_cbNzN, _cbNz);
+
+          _cbFrustum.set(_cbPxPlane, _cbNxPlane, _cbPyPlane, _cbNyPlane, _cbPzPlane, _cbNzPlane);
+          let intersects = _cbFrustum.intersectsBox(box);
+
+          if ( intersects ) {
+            numIntersecting++;
+          }
+          numIntersectionVolumes++;
+        }
+
+        let insideAny = numIntersecting > 0;
+        let insideAll = numIntersecting === numIntersectionVolumes;
+
+        if ( pointcloud.material.clipTask === ClipTask.SHOW_INSIDE ) {
+          if ( pointcloud.material.clipMethod === ClipMethod.INSIDE_ANY && insideAny ) {
+            //node.debug = true
+          } else if ( pointcloud.material.clipMethod === ClipMethod.INSIDE_ALL && insideAll ) {
+            //node.debug = true;
+          } else {
+            visible = false;
+          }
+        } else if ( pointcloud.material.clipTask === ClipTask.SHOW_OUTSIDE ) {
+          //if(pointcloud.material.clipMethod === ClipMethod.INSIDE_ANY && !insideAny){
+          //	//visible = true;
+          //	let a = 10;
+          //}else if(pointcloud.material.clipMethod === ClipMethod.INSIDE_ALL && !insideAll){
+          //	//visible = true;
+          //	let a = 20;
+          //}else{
+          //	visible = false;
+          //}
+        }
+
+
+      }
+
+      // visible = ["r", "r0", "r06", "r060"].includes(node.name);
+      // visible = ["r"].includes(node.name);
+
+      if ( node.spacing ) {
+        lowestSpacing = Math.min(lowestSpacing, node.spacing);
+      } else if ( node.geometryNode && node.geometryNode.spacing ) {
+        lowestSpacing = Math.min(lowestSpacing, node.geometryNode.spacing);
+      }
+
+      if ( numVisiblePoints + node.getNumPoints() > Potree.pointBudget ) {
+        break;
+      }
+
+      if ( !visible ) {
+        continue;
+      }
+
+      // TODO: not used, same as the declaration?
+      // numVisibleNodes++;
+      numVisiblePoints += node.getNumPoints();
+      let numVisiblePointsInPointcloud = numVisiblePointsInPointclouds.get(pointcloud);
+      numVisiblePointsInPointclouds.set(pointcloud, numVisiblePointsInPointcloud + node.getNumPoints());
+
+      pointcloud.numVisibleNodes++;
+      pointcloud.numVisiblePoints += node.getNumPoints();
+
+      if ( node.isGeometryNode() && (!parent || parent.isTreeNode()) ) {
+        // Time-based GPU upload budget: upload as many nodes as fit within 5ms
+        // instead of the fixed 2-node/frame limit. This dramatically reduces
+        // the "pop-in" effect when loading large point clouds.
+        let uploadBudgetMs = Potree.uploadBudgetMs || 5;
+        if ( node.isLoaded() && (performance.now() - uploadStartTime) < uploadBudgetMs ) {
+          node = pointcloud.toTreeNode(node, parent);
+          loadedToGPUThisFrame++;
+        } else {
+          unloadedGeometry.push(node);
+          visibleGeometry.push(node);
+        }
+      }
+
+      if ( node.isTreeNode() ) {
+        exports.lru.touch(node.geometryNode);
+        node.sceneNode.visible = true;
+        node.sceneNode.material = pointcloud.material;
+
+        visibleNodes.push(node);
+        pointcloud.visibleNodes.push(node);
+
+        if ( node._transformVersion === undefined ) {
+          node._transformVersion = -1;
+        }
+        let transformVersion = pointcloudTransformVersion.get(pointcloud);
+        if ( node._transformVersion !== transformVersion.number ) {
+          node.sceneNode.updateMatrix();
+          node.sceneNode.matrixWorld.multiplyMatrices(pointcloud.matrixWorld, node.sceneNode.matrix);
+          node._transformVersion = transformVersion.number;
+        }
+
+        if ( pointcloud.showBoundingBox && !node.boundingBoxNode && node.getBoundingBox ) {
+          let boxHelper = new Box3Helper$1(node.getBoundingBox());
+          boxHelper.matrixAutoUpdate = false;
+          pointcloud.boundingBoxNodes.push(boxHelper);
+          node.boundingBoxNode = boxHelper;
+          node.boundingBoxNode.matrix.copy(pointcloud.matrixWorld);
+        } else if ( pointcloud.showBoundingBox ) {
+          node.boundingBoxNode.visible = true;
+          node.boundingBoxNode.matrix.copy(pointcloud.matrixWorld);
+        } else if ( !pointcloud.showBoundingBox && node.boundingBoxNode ) {
+          node.boundingBoxNode.visible = false;
+        }
+
+        // if(node.boundingBoxNode !== undefined && exports.debug.allowedNodes !== undefined){
+        // 	if(!exports.debug.allowedNodes.includes(node.name)){
+        // 		node.boundingBoxNode.visible = false;
+        // 	}
+        // }
+      }
+
+      // add child nodes to priorityQueue
+      let children = node.getChildren();
+      for ( let i = 0; i < children.length; i++ ) {
+        let child = children[i];
+
+        let weight = 0;
+        if ( camera.isPerspectiveCamera ) {
+          let sphere = child.getBoundingSphere();
+          let center = sphere.center;
+          //let distance = sphere.center.distanceTo(camObjPos);
+
+          let dx = camObjPos.x - center.x;
+          let dy = camObjPos.y - center.y;
+          let dz = camObjPos.z - center.z;
+
+          let dd = dx * dx + dy * dy + dz * dz;
+          let distance = Math.sqrt(dd);
+
+
+          let radius = sphere.radius;
+
+          let fov = (camera.fov * Math.PI) / 180;
+          let slope = Math.tan(fov / 2);
+          let projFactor = (0.5 * domHeight) / (slope * distance);
+          let screenPixelRadius = radius * projFactor;
+
+          if ( screenPixelRadius < pointcloud.minimumNodePixelSize ) {
+            continue;
+          }
+
+          weight = screenPixelRadius;
+
+          if ( distance - radius < 0 ) {
+            weight = Number.MAX_VALUE;
+          }
+        } else {
+          // TODO ortho visibility
+          let bb = child.getBoundingBox();
+          let distance = child.getBoundingSphere().center.distanceTo(camObjPos);
+          let diagonal = bb.max.clone().sub(bb.min).length();
+          //weight = diagonal / distance;
+
+          weight = diagonal;
+        }
+
+        priorityQueue.push({pointcloud: element.pointcloud, node: child, parent: node, weight: weight});
+      }
+    }// end priority queue loop
+
+    { // update DEM
+      let maxDEMLevel = 4;
+      let candidates = pointclouds
+        .filter(p => (p.generateDEM && p.dem instanceof Potree.DEM));
+      for ( let pointcloud of candidates ) {
+        let updatingNodes = pointcloud.visibleNodes.filter(n => n.getLevel() <= maxDEMLevel);
+        pointcloud.dem.update(updatingNodes);
+      }
+    }
+
+    for ( let i = 0; i < Math.min(Potree.maxNodesLoading, unloadedGeometry.length); i++ ) {
+      unloadedGeometry[i].load();
+    }
+
+    // --- Update visibility cache ---
+    _cachedCameraMatrix.copy(camera.matrixWorldInverse);
+    _cachedProjectionMatrix.copy(camera.projectionMatrix);
+    _cachedPointBudget = Potree.pointBudget;
+    _cachedPointcloudCount = pointclouds.length;
+    exports.visibilityDirty = false;
+
+    _cachedResult = {
+      visibleNodes: visibleNodes,
+      numVisiblePoints: numVisiblePoints,
+      lowestSpacing: lowestSpacing
+    };
+
+    return _cachedResult;
+  }
+
   class PointCloudOctreeGeometry {
 
     constructor() {
@@ -57322,6 +57815,7 @@
 
         }
 
+        setVisibilityDirty();
         node.loadPoints();
       };
       if ( (node.level % node.pcoGeometry.hierarchyStepSize) === 0 ) {
@@ -61104,10 +61598,12 @@ void main() {
         let pc = node.sceneNode;
         let geometry = node.geometryNode.geometry;
 
+        let hasPosition = false;
         for ( let attributeName in geometry.attributes ) {
           let attribute = geometry.attributes[attributeName];
 
           if ( attributeName === 'position' ) {
+            if ( !attribute || !attribute.array ) break;
             let x = attribute.array[3 * hit.pIndex + 0];
             let y = attribute.array[3 * hit.pIndex + 1];
             let z = attribute.array[3 * hit.pIndex + 2];
@@ -61116,10 +61612,12 @@ void main() {
             position.applyMatrix4(pc.matrixWorld);
 
             point[attributeName] = position;
+            hasPosition = true;
           } else if ( attributeName === 'indices' ) {
 
           } else {
 
+            if ( !attribute || !attribute.array ) continue;
             let values = attribute.array.slice(attribute.itemSize * hit.pIndex, attribute.itemSize * (hit.pIndex + 1));
 
             if ( attribute.potree ) {
@@ -61143,6 +61641,7 @@ void main() {
 
         }
 
+        if (!hasPosition) continue;
         hit.point = point;
       }
 
@@ -61336,454 +61835,6 @@ void main() {
 
       this.boundingBox.union(points.boundingBox);
     }
-  }
-
-  /**
-   *
-   * code adapted from three.js BoxHelper.js
-   * https://github.com/mrdoob/three.js/blob/dev/src/helpers/BoxHelper.js
-   *
-   * @author mrdoob / http://mrdoob.com/
-   * @author Mugen87 / http://github.com/Mugen87
-   * @author mschuetz / http://potree.org
-   */
-
-  class Box3Helper$1 extends LineSegments {
-    constructor(box, color) {
-      if ( color === undefined ) color = 0xffff00;
-
-      let indices = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7]);
-      let positions = new Float32Array([
-        box.min.x, box.min.y, box.min.z,
-        box.max.x, box.min.y, box.min.z,
-        box.max.x, box.min.y, box.max.z,
-        box.min.x, box.min.y, box.max.z,
-        box.min.x, box.max.y, box.min.z,
-        box.max.x, box.max.y, box.min.z,
-        box.max.x, box.max.y, box.max.z,
-        box.min.x, box.max.y, box.max.z
-      ]);
-
-      let geometry = new BufferGeometry();
-      geometry.setIndex(new BufferAttribute(indices, 1));
-      geometry.setAttribute('position', new BufferAttribute(positions, 3));
-
-      let material = new LineBasicMaterial({color: color});
-
-      super(geometry, material);
-    }
-  }
-
-  function updatePointClouds(pointclouds, camera, renderer) {
-
-    for ( let pointcloud of pointclouds ) {
-      let start = performance.now();
-
-      for ( let profileRequest of pointcloud.profileRequests ) {
-        profileRequest.update();
-
-        let duration = performance.now() - start;
-        if ( duration > 5 ) {
-          break;
-        }
-      }
-
-      let duration = performance.now() - start;
-    }
-
-    let result = updateVisibility(pointclouds, camera, renderer);
-
-    for ( let pointcloud of pointclouds ) {
-      pointcloud.updateMaterial(pointcloud.material, pointcloud.visibleNodes, camera, renderer);
-      pointcloud.updateVisibleBounds();
-    }
-
-    exports.lru.freeMemory();
-
-    return result;
-  }
-
-
-  function updateVisibilityStructures(pointclouds, camera, renderer) {
-    let frustums = [];
-    let camObjPositions = [];
-    let priorityQueue = new BinaryHeap(function (x) {
-      return 1 / x.weight;
-    });
-
-    for ( let i = 0; i < pointclouds.length; i++ ) {
-      let pointcloud = pointclouds[i];
-
-      if ( !pointcloud.initialized() ) {
-        continue;
-      }
-
-      pointcloud.numVisibleNodes = 0;
-      pointcloud.numVisiblePoints = 0;
-      pointcloud.deepestVisibleLevel = 0;
-      pointcloud.visibleNodes = [];
-      pointcloud.visibleGeometry = [];
-
-      // frustum in object space
-      camera.updateMatrixWorld();
-      let frustum = new Frustum();
-      let viewI = camera.matrixWorldInverse;
-      let world = pointcloud.matrixWorld;
-
-      // use close near plane for frustum intersection
-      let frustumCam = camera.clone();
-      frustumCam.near = Math.min(camera.near, 0.1);
-      frustumCam.updateProjectionMatrix();
-      let proj = camera.projectionMatrix;
-
-      let fm = new Matrix4().multiply(proj).multiply(viewI).multiply(world);
-      frustum.setFromProjectionMatrix(fm);
-      frustums.push(frustum);
-
-      // camera position in object space
-      let view = camera.matrixWorld;
-      let worldI = world.clone().invert();
-      let camMatrixObject = new Matrix4().multiply(worldI).multiply(view);
-      let camObjPos = new Vector3().setFromMatrixPosition(camMatrixObject);
-      camObjPositions.push(camObjPos);
-
-      if ( pointcloud.visible && pointcloud.root !== null ) {
-        priorityQueue.push({pointcloud: i, node: pointcloud.root, weight: Number.MAX_VALUE});
-      }
-
-      // hide all previously visible nodes
-      // if(pointcloud.root instanceof PointCloudOctreeNode){
-      //	pointcloud.hideDescendants(pointcloud.root.sceneNode);
-      // }
-      if ( pointcloud.root.isTreeNode() ) {
-        pointcloud.hideDescendants(pointcloud.root.sceneNode);
-      }
-
-      for ( let j = 0; j < pointcloud.boundingBoxNodes.length; j++ ) {
-        pointcloud.boundingBoxNodes[j].visible = false;
-      }
-    }
-
-    return {
-      'frustums': frustums,
-      'camObjPositions': camObjPositions,
-      'priorityQueue': priorityQueue
-    };
-  }
-
-
-  function updateVisibility(pointclouds, camera, renderer) {
-
-    let numVisibleNodes = 0;
-    let numVisiblePoints = 0;
-
-    let numVisiblePointsInPointclouds = new Map(pointclouds.map(pc => [pc, 0]));
-
-    let visibleNodes = [];
-    let visibleGeometry = [];
-    let unloadedGeometry = [];
-
-    let lowestSpacing = Infinity;
-
-    // calculate object space frustum and cam pos and setup priority queue
-    let s = updateVisibilityStructures(pointclouds, camera, renderer);
-    let frustums = s.frustums;
-    let camObjPositions = s.camObjPositions;
-    let priorityQueue = s.priorityQueue;
-
-    let loadedToGPUThisFrame = 0;
-
-    let domWidth = renderer.domElement.clientWidth;
-    let domHeight = renderer.domElement.clientHeight;
-
-    // check if pointcloud has been transformed
-    // some code will only be executed if changes have been detected
-    if ( !Potree._pointcloudTransformVersion ) {
-      Potree._pointcloudTransformVersion = new Map();
-    }
-    let pointcloudTransformVersion = Potree._pointcloudTransformVersion;
-    for ( let pointcloud of pointclouds ) {
-
-      if ( !pointcloud.visible ) {
-        continue;
-      }
-
-      pointcloud.updateMatrixWorld();
-
-      if ( !pointcloudTransformVersion.has(pointcloud) ) {
-        pointcloudTransformVersion.set(pointcloud, {number: 0, transform: pointcloud.matrixWorld.clone()});
-      } else {
-        let version = pointcloudTransformVersion.get(pointcloud);
-
-        if ( !version.transform.equals(pointcloud.matrixWorld) ) {
-          version.number++;
-          version.transform.copy(pointcloud.matrixWorld);
-
-          pointcloud.dispatchEvent({
-            type: "transformation_changed",
-            target: pointcloud
-          });
-        }
-      }
-    }
-
-    while ( priorityQueue.size() > 0 ) {
-      let element = priorityQueue.pop();
-      let node = element.node;
-      let parent = element.parent;
-      let pointcloud = pointclouds[element.pointcloud];
-
-      // { // restrict to certain nodes for debugging
-      //	let allowedNodes = ["r", "r0", "r4"];
-      //	if(!allowedNodes.includes(node.name)){
-      //		continue;
-      //	}
-      // }
-
-      let box = node.getBoundingBox();
-      let frustum = frustums[element.pointcloud];
-      let camObjPos = camObjPositions[element.pointcloud];
-
-      let insideFrustum = frustum.intersectsBox(box);
-      let maxLevel = pointcloud.maxLevel || Infinity;
-      let level = node.getLevel();
-      let visible = insideFrustum;
-      visible = visible && !(numVisiblePoints + node.getNumPoints() > Potree.pointBudget);
-      visible = visible && !(numVisiblePointsInPointclouds.get(pointcloud) + node.getNumPoints() > pointcloud.pointBudget);
-      visible = visible && level < maxLevel;
-      visible = visible || node.getLevel() <= 2;
-
-      let clipBoxes = pointcloud.material.clipBoxes;
-      if ( true && clipBoxes.length > 0 ) {
-
-        //node.debug = false;
-
-        let numIntersecting = 0;
-        let numIntersectionVolumes = 0;
-
-        //if(node.name === "r60"){
-        //	var a = 10;
-        //}
-
-        for ( let clipBox of clipBoxes ) {
-
-          let pcWorldInverse = pointcloud.matrixWorld.clone().invert();
-          let toPCObject = pcWorldInverse.multiply(clipBox.box.matrixWorld);
-
-          let px = new Vector3(+0.5, 0, 0).applyMatrix4(pcWorldInverse);
-          let nx = new Vector3(-0.5, 0, 0).applyMatrix4(pcWorldInverse);
-          let py = new Vector3(0, +0.5, 0).applyMatrix4(pcWorldInverse);
-          let ny = new Vector3(0, -0.5, 0).applyMatrix4(pcWorldInverse);
-          let pz = new Vector3(0, 0, +0.5).applyMatrix4(pcWorldInverse);
-          let nz = new Vector3(0, 0, -0.5).applyMatrix4(pcWorldInverse);
-
-          let pxN = new Vector3().subVectors(nx, px).normalize();
-          let nxN = pxN.clone().multiplyScalar(-1);
-          let pyN = new Vector3().subVectors(ny, py).normalize();
-          let nyN = pyN.clone().multiplyScalar(-1);
-          let pzN = new Vector3().subVectors(nz, pz).normalize();
-          let nzN = pzN.clone().multiplyScalar(-1);
-
-          let pxPlane = new Plane().setFromNormalAndCoplanarPoint(pxN, px);
-          let nxPlane = new Plane().setFromNormalAndCoplanarPoint(nxN, nx);
-          let pyPlane = new Plane().setFromNormalAndCoplanarPoint(pyN, py);
-          let nyPlane = new Plane().setFromNormalAndCoplanarPoint(nyN, ny);
-          let pzPlane = new Plane().setFromNormalAndCoplanarPoint(pzN, pz);
-          let nzPlane = new Plane().setFromNormalAndCoplanarPoint(nzN, nz);
-
-          //if(window.debugdraw !== undefined && window.debugdraw === true && node.name === "r60"){
-
-          //	Potree.utils.debugPlane(viewer.scene.scene, pxPlane, 1, 0xFF0000);
-          //	Potree.utils.debugPlane(viewer.scene.scene, nxPlane, 1, 0x990000);
-          //	Potree.utils.debugPlane(viewer.scene.scene, pyPlane, 1, 0x00FF00);
-          //	Potree.utils.debugPlane(viewer.scene.scene, nyPlane, 1, 0x009900);
-          //	Potree.utils.debugPlane(viewer.scene.scene, pzPlane, 1, 0x0000FF);
-          //	Potree.utils.debugPlane(viewer.scene.scene, nzPlane, 1, 0x000099);
-
-          //	Potree.utils.debugBox(viewer.scene.scene, box, new THREE.Matrix4(), 0x00FF00);
-          //	Potree.utils.debugBox(viewer.scene.scene, box, pointcloud.matrixWorld, 0xFF0000);
-          //	Potree.utils.debugBox(viewer.scene.scene, clipBox.box.boundingBox, clipBox.box.matrixWorld, 0xFF0000);
-
-          //	window.debugdraw = false;
-          //}
-
-          let frustum = new Frustum(pxPlane, nxPlane, pyPlane, nyPlane, pzPlane, nzPlane);
-          let intersects = frustum.intersectsBox(box);
-
-          if ( intersects ) {
-            numIntersecting++;
-          }
-          numIntersectionVolumes++;
-        }
-
-        let insideAny = numIntersecting > 0;
-        let insideAll = numIntersecting === numIntersectionVolumes;
-
-        if ( pointcloud.material.clipTask === ClipTask.SHOW_INSIDE ) {
-          if ( pointcloud.material.clipMethod === ClipMethod.INSIDE_ANY && insideAny ) {
-            //node.debug = true
-          } else if ( pointcloud.material.clipMethod === ClipMethod.INSIDE_ALL && insideAll ) {
-            //node.debug = true;
-          } else {
-            visible = false;
-          }
-        } else if ( pointcloud.material.clipTask === ClipTask.SHOW_OUTSIDE ) {
-          //if(pointcloud.material.clipMethod === ClipMethod.INSIDE_ANY && !insideAny){
-          //	//visible = true;
-          //	let a = 10;
-          //}else if(pointcloud.material.clipMethod === ClipMethod.INSIDE_ALL && !insideAll){
-          //	//visible = true;
-          //	let a = 20;
-          //}else{
-          //	visible = false;
-          //}
-        }
-
-
-      }
-
-      // visible = ["r", "r0", "r06", "r060"].includes(node.name);
-      // visible = ["r"].includes(node.name);
-
-      if ( node.spacing ) {
-        lowestSpacing = Math.min(lowestSpacing, node.spacing);
-      } else if ( node.geometryNode && node.geometryNode.spacing ) {
-        lowestSpacing = Math.min(lowestSpacing, node.geometryNode.spacing);
-      }
-
-      if ( numVisiblePoints + node.getNumPoints() > Potree.pointBudget ) {
-        break;
-      }
-
-      if ( !visible ) {
-        continue;
-      }
-
-      // TODO: not used, same as the declaration?
-      // numVisibleNodes++;
-      numVisiblePoints += node.getNumPoints();
-      let numVisiblePointsInPointcloud = numVisiblePointsInPointclouds.get(pointcloud);
-      numVisiblePointsInPointclouds.set(pointcloud, numVisiblePointsInPointcloud + node.getNumPoints());
-
-      pointcloud.numVisibleNodes++;
-      pointcloud.numVisiblePoints += node.getNumPoints();
-
-      if ( node.isGeometryNode() && (!parent || parent.isTreeNode()) ) {
-        if ( node.isLoaded() && loadedToGPUThisFrame < 2 ) {
-          node = pointcloud.toTreeNode(node, parent);
-          loadedToGPUThisFrame++;
-        } else {
-          unloadedGeometry.push(node);
-          visibleGeometry.push(node);
-        }
-      }
-
-      if ( node.isTreeNode() ) {
-        exports.lru.touch(node.geometryNode);
-        node.sceneNode.visible = true;
-        node.sceneNode.material = pointcloud.material;
-
-        visibleNodes.push(node);
-        pointcloud.visibleNodes.push(node);
-
-        if ( node._transformVersion === undefined ) {
-          node._transformVersion = -1;
-        }
-        let transformVersion = pointcloudTransformVersion.get(pointcloud);
-        if ( node._transformVersion !== transformVersion.number ) {
-          node.sceneNode.updateMatrix();
-          node.sceneNode.matrixWorld.multiplyMatrices(pointcloud.matrixWorld, node.sceneNode.matrix);
-          node._transformVersion = transformVersion.number;
-        }
-
-        if ( pointcloud.showBoundingBox && !node.boundingBoxNode && node.getBoundingBox ) {
-          let boxHelper = new Box3Helper$1(node.getBoundingBox());
-          boxHelper.matrixAutoUpdate = false;
-          pointcloud.boundingBoxNodes.push(boxHelper);
-          node.boundingBoxNode = boxHelper;
-          node.boundingBoxNode.matrix.copy(pointcloud.matrixWorld);
-        } else if ( pointcloud.showBoundingBox ) {
-          node.boundingBoxNode.visible = true;
-          node.boundingBoxNode.matrix.copy(pointcloud.matrixWorld);
-        } else if ( !pointcloud.showBoundingBox && node.boundingBoxNode ) {
-          node.boundingBoxNode.visible = false;
-        }
-
-        // if(node.boundingBoxNode !== undefined && exports.debug.allowedNodes !== undefined){
-        // 	if(!exports.debug.allowedNodes.includes(node.name)){
-        // 		node.boundingBoxNode.visible = false;
-        // 	}
-        // }
-      }
-
-      // add child nodes to priorityQueue
-      let children = node.getChildren();
-      for ( let i = 0; i < children.length; i++ ) {
-        let child = children[i];
-
-        let weight = 0;
-        if ( camera.isPerspectiveCamera ) {
-          let sphere = child.getBoundingSphere();
-          let center = sphere.center;
-          //let distance = sphere.center.distanceTo(camObjPos);
-
-          let dx = camObjPos.x - center.x;
-          let dy = camObjPos.y - center.y;
-          let dz = camObjPos.z - center.z;
-
-          let dd = dx * dx + dy * dy + dz * dz;
-          let distance = Math.sqrt(dd);
-
-
-          let radius = sphere.radius;
-
-          let fov = (camera.fov * Math.PI) / 180;
-          let slope = Math.tan(fov / 2);
-          let projFactor = (0.5 * domHeight) / (slope * distance);
-          let screenPixelRadius = radius * projFactor;
-
-          if ( screenPixelRadius < pointcloud.minimumNodePixelSize ) {
-            continue;
-          }
-
-          weight = screenPixelRadius;
-
-          if ( distance - radius < 0 ) {
-            weight = Number.MAX_VALUE;
-          }
-        } else {
-          // TODO ortho visibility
-          let bb = child.getBoundingBox();
-          let distance = child.getBoundingSphere().center.distanceTo(camObjPos);
-          let diagonal = bb.max.clone().sub(bb.min).length();
-          //weight = diagonal / distance;
-
-          weight = diagonal;
-        }
-
-        priorityQueue.push({pointcloud: element.pointcloud, node: child, parent: node, weight: weight});
-      }
-    }// end priority queue loop
-
-    { // update DEM
-      let maxDEMLevel = 4;
-      let candidates = pointclouds
-        .filter(p => (p.generateDEM && p.dem instanceof Potree.DEM));
-      for ( let pointcloud of candidates ) {
-        let updatingNodes = pointcloud.visibleNodes.filter(n => n.getLevel() <= maxDEMLevel);
-        pointcloud.dem.update(updatingNodes);
-      }
-    }
-
-    for ( let i = 0; i < Math.min(Potree.maxNodesLoading, unloadedGeometry.length); i++ ) {
-      unloadedGeometry[i].load();
-    }
-
-    return {
-      visibleNodes: visibleNodes,
-      numVisiblePoints: numVisiblePoints,
-      lowestSpacing: lowestSpacing
-    };
   }
 
   // Copied from three.js: WebGLRenderer.js
@@ -62121,8 +62172,10 @@ void main() {
         return;
       }
 
-      let tmp = new Float32Array(value.elements);
-      gl.uniformMatrix4fv(location, false, tmp);
+      // Reuse cached Float32Array to avoid GC pressure
+      if ( !this._mat4tmp ) this._mat4tmp = new Float32Array(16);
+      this._mat4tmp.set(value.elements);
+      gl.uniformMatrix4fv(location, false, this._mat4tmp);
     }
 
     setUniform1f(name, value) {
@@ -62368,7 +62421,8 @@ void main() {
         gl.bufferData(gl.ARRAY_BUFFER, bufferAttribute.array, gl.STATIC_DRAW);
 
         let normalized = bufferAttribute.normalized;
-        let type = this.glTypeMapping.get(bufferAttribute.array.constructor);
+        let arrayType = bufferAttribute.array.constructor;
+        let type = this.glTypeMapping.get(arrayType);
 
         if ( attributeLocations[attributeName] === undefined ) {
           //attributeLocation = attributeLocations["aExtra"];
@@ -62385,13 +62439,20 @@ void main() {
           name: attributeName,
           count: bufferAttribute.count,
           itemSize: bufferAttribute.itemSize,
-          type: geometry.attributes.position.array.constructor,
+          type: arrayType,
           version: 0
         });
       }
 
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
       gl.bindVertexArray(null);
+
+      // Free JS-side typed arrays — data now lives only in GPU VRAM.
+      // Keep 'position' array for CPU-side picking (measure tools).
+      for ( let attributeName in geometry.attributes ) {
+        if ( attributeName === 'position' ) continue;
+        geometry.attributes[attributeName].array = null;
+      }
 
       let disposeHandler = (event) => {
         this.deleteBuffer(geometry);
@@ -62412,6 +62473,11 @@ void main() {
       for ( let attributeName in geometry.attributes ) {
         let bufferAttribute = geometry.attributes[attributeName];
 
+        // Skip attributes whose JS arrays were freed after GPU upload
+        if ( !bufferAttribute.array ) {
+          continue;
+        }
+
         let normalized = bufferAttribute.normalized;
         let type = this.glTypeMapping.get(bufferAttribute.array.constructor);
 
@@ -62424,7 +62490,7 @@ void main() {
             name: attributeName,
             count: bufferAttribute.count,
             itemSize: bufferAttribute.itemSize,
-            type: geometry.attributes.position.array.constructor,
+            type: bufferAttribute.array.constructor,
             version: bufferAttribute.version
           });
         } else {
@@ -62490,9 +62556,11 @@ void main() {
         view = params.viewOverride;
       }
 
-      let worldView = new Matrix4();
-
-      let mat4holder = new Float32Array(16);
+      // Reuse pre-allocated objects to reduce GC pressure
+      if ( !this._worldView ) this._worldView = new Matrix4();
+      if ( !this._mat4holder ) this._mat4holder = new Float32Array(16);
+      let worldView = this._worldView;
+      let mat4holder = this._mat4holder;
 
       let i = 0;
       for ( let node of nodes ) {
@@ -62744,7 +62812,7 @@ void main() {
           const vbo = webglBuffer.vbos.get(attName);
 
           if ( bufferAttribute !== undefined && vbo !== undefined ) {
-            let type = this.glTypeMapping.get(bufferAttribute.array.constructor);
+            let type = this.glTypeMapping.get(vbo.type);
             let normalized = bufferAttribute.normalized;
 
             gl.bindBuffer(gl.ARRAY_BUFFER, vbo.handle);
@@ -62792,7 +62860,7 @@ void main() {
             if ( attributeLocations[attributeName] !== undefined ) {
               const attributeLocation = attributeLocations[attributeName].location;
 
-              let type = this.glTypeMapping.get(bufferAttribute.array.constructor);
+              let type = this.glTypeMapping.get(vbo.type);
               let normalized = bufferAttribute.normalized;
 
               gl.bindBuffer(gl.ARRAY_BUFFER, vbo.handle);
@@ -62826,13 +62894,17 @@ void main() {
       let view = camera.matrixWorldInverse;
       let viewInv = camera.matrixWorld;
 
+      // Pre-allocate inverse matrices to avoid per-octree clone+invert
+      if ( !this._projInv ) this._projInv = new Matrix4();
+      if ( !this._viewInvTmp ) this._viewInvTmp = new Matrix4();
+
       if ( params.viewOverride ) {
         view = params.viewOverride;
-        viewInv = view.clone().invert();
+        viewInv = this._viewInvTmp.copy(view).invert();
       }
 
       let proj = camera.projectionMatrix;
-      let projInv = proj.clone().invert();
+      let projInv = this._projInv.copy(proj).invert();
       //let worldView = new THREE.Matrix4();
 
       let shader = null;
@@ -63689,6 +63761,18 @@ void main() {
       this.workers = {};
     }
 
+    // Pre-warm the worker pool with multiple workers for a given script URL.
+    // Call this once when first loading a point cloud to enable parallel decoding.
+    warmup(url, count) {
+      count = count || Math.min(navigator.hardwareConcurrency || 4, 8);
+      if (!this.workers[url]) {
+        this.workers[url] = [];
+      }
+      while (this.workers[url].length < count) {
+        this.workers[url].push(new Worker(url));
+      }
+    }
+
     getWorker(url) {
       if ( !this.workers[url] ) {
         this.workers[url] = [];
@@ -63708,8 +63792,6 @@ void main() {
       this.workers[url].push(worker);
     }
   }
-
-  //Potree.workerPool = new Potree.WorkerPool();
 
   function createPointcloudData(pointcloud) {
 
@@ -65369,6 +65451,7 @@ void main() {
         node.loading = false;
         node.estimatedSpacing = data.estimatedSpacing;
         Potree.numNodesLoading--;
+        setVisibilityDirty();
       };
 
       let message = {
@@ -65860,6 +65943,7 @@ void main() {
           node.loaded = true;
           node.loading = false;
           Potree.numNodesLoading--;
+          setVisibilityDirty();
         };
 
         let pointAttributes = node.octreeGeometry.pointAttributes;
@@ -70156,6 +70240,10 @@ void main() {
       this.gl = viewer.renderer.getContext();
 
       this.initialized = false;
+
+      // Pre-allocated objects to avoid GC pressure
+      this._octreeSize = new Vector3();
+      this._sizeVec = new Vector2();
     }
 
     init() {
@@ -70193,6 +70281,9 @@ void main() {
     };
 
     resize(width, height) {
+      if (this._lastW === width && this._lastH === height) return;
+      this._lastW = width;
+      this._lastH = height;
       this.rtDepth.setSize(width, height);
       this.rtAttribute.setSize(width, height);
     }
@@ -70242,7 +70333,7 @@ void main() {
 
       const viewer = this.viewer;
       const camera = params.camera ? params.camera : viewer.scene.getActiveCamera();
-      const {width, height} = this.viewer.renderer.getSize(new Vector2());
+      const {width, height} = this.viewer.renderer.getSize(this._sizeVec);
 
       viewer.dispatchEvent({type: "render.pass.begin", viewer: viewer});
 
@@ -70269,9 +70360,12 @@ void main() {
         }
       }
 
+      // Cache SphereVolume filter — reused by both depth and attribute passes
+      let clipSpheres = viewer.scene.volumes.filter(v => (v instanceof SphereVolume));
+
       { // DEPTH PASS
         for ( let pointcloud of visiblePointClouds ) {
-          let octreeSize = pointcloud.pcoGeometry.boundingBox.getSize(new Vector3()).x;
+          let octreeSize = pointcloud.pcoGeometry.boundingBox.getSize(this._octreeSize).x;
 
           let material = originalMaterials.get(pointcloud);
           let depthMaterial = this.depthMaterials.get(pointcloud);
@@ -70307,13 +70401,13 @@ void main() {
         }
 
         viewer.pRenderer.render(viewer.scene.scenePointCloud, camera, this.rtDepth, {
-          clipSpheres: viewer.scene.volumes.filter(v => (v instanceof SphereVolume)),
+          clipSpheres: clipSpheres,
         });
       }
 
       { // ATTRIBUTE PASS
         for ( let pointcloud of visiblePointClouds ) {
-          let octreeSize = pointcloud.pcoGeometry.boundingBox.getSize(new Vector3()).x;
+          let octreeSize = pointcloud.pcoGeometry.boundingBox.getSize(this._octreeSize).x;
 
           let material = originalMaterials.get(pointcloud);
           let attributeMaterial = this.attributeMaterials.get(pointcloud);
@@ -70377,7 +70471,7 @@ void main() {
 
         viewer.renderer.setRenderTarget(null);
         viewer.pRenderer.render(viewer.scene.scenePointCloud, camera, this.rtAttribute, {
-          clipSpheres: viewer.scene.volumes.filter(v => (v instanceof SphereVolume)),
+          clipSpheres: clipSpheres,
           //material: this.attributeMaterial,
           blendFunc: [gl.SRC_ALPHA, gl.ONE],
           //depthTest: false,
@@ -73785,7 +73879,7 @@ ENDSEC
 				<!-- ACTIONS -->
 				<div style="display: flex; margin-top: 12px">
 					<span>
-						<input type="button" name="make_profile" value="profile from measure" />
+						<input type="button" name="make_profile" value="profile from measure" data-i18n="[value]measurements.profile_from_measure" />
 					</span>
 					<span style="flex-grow: 1"></span>
 					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
@@ -73838,7 +73932,7 @@ ENDSEC
       elDistanceTable.empty();
 
       for ( let i = 0; i < distances.length; i++ ) {
-        let label = (i === 0) ? 'Distances: ' : '';
+        let label = (i === 0) ? '<span data-i18n="measurements.distances">Distances</span>: ' : '';
         let distance = distances[i];
         let elDistance = $(`
 				<tr>
@@ -73850,7 +73944,7 @@ ENDSEC
 
       let elTotal = $(`
 			<tr>
-				<th>Total: </td><td style="width: 100%; padding-left: 10px">${totalDistance}</th>
+				<th><span data-i18n="measurements.total">Total</span>: </td><td style="width: 100%; padding-left: 10px">${totalDistance}</th>
 			</tr>`);
       elDistanceTable.append(elTotal);
     }
@@ -73908,7 +74002,7 @@ ENDSEC
 			<div class="measurement_content selectable">
 				<span class="coordinates_table_container"></span>
 				<br>
-				<span style="font-weight: bold">Area: </span>
+				<span style="font-weight: bold" data-i18n="measurements.area">Area</span>: 
 				<span id="measurement_area"></span>
 
 				<!-- ACTIONS -->
@@ -74102,7 +74196,7 @@ ENDSEC
 			<div class="measurement_content selectable">
 				<span class="coordinates_table_container"></span>
 				<br>
-				<span id="height_label">Height: </span><br>
+				<span id="height_label" data-i18n="measurements.height">Height</span>: <br>
 
 				<!-- ACTIONS -->
 				<div style="display: flex; margin-top: 12px">
@@ -74142,7 +74236,7 @@ ENDSEC
         height = height.toFixed(3);
 
         this.elHeightLabel = this.elContent.find(`#height_label`);
-        this.elHeightLabel.html(`<b>Height:</b> ${height}`);
+        this.elHeightLabel.html(`<b data-i18n="measurements.height">Height</b>: ${height}`);
       }
     }
   }
@@ -75258,7 +75352,7 @@ ENDSEC
 				<li><span data-i18n="appearance.point_opacity"></span>:<span id="lblOpacity"></span><div id="sldOpacity"></div></li>
 
 				<div class="divider">
-					<span>Attribute</span>
+					<span data-i18n="appearance.attribute">Attribute</span>
 				</div>
 
 				<li>
@@ -75267,12 +75361,12 @@ ENDSEC
 
 				<div id="materials.composite_weight_container">
 					<div class="divider">
-						<span>Attribute Weights</span>
+						<span data-i18n="appearance.attribute_weights">Attribute Weights</span>
 					</div>
 
-					<li>RGB: <span id="lblWeightRGB"></span> <div id="sldWeightRGB"></div>	</li>
-					<li>Intensity: <span id="lblWeightIntensity"></span> <div id="sldWeightIntensity"></div>	</li>
-					<li>Elevation: <span id="lblWeightElevation"></span> <div id="sldWeightElevation"></div>	</li>
+					<li><span data-i18n="appearance.rgb">RGB</span>: <span id="lblWeightRGB"></span> <div id="sldWeightRGB"></div>	</li>
+					<li><span data-i18n="appearance.intensity">Intensity</span>: <span id="lblWeightIntensity"></span> <div id="sldWeightIntensity"></div>	</li>
+					<li><span data-i18n="appearance.elevation">Elevation</span>: <span id="lblWeightElevation"></span> <div id="sldWeightElevation"></div>	</li>
 					<li>Classification: <span id="lblWeightClassification"></span> <div id="sldWeightClassification"></div>	</li>
 					<li>Return Number: <span id="lblWeightReturnNumber"></span> <div id="sldWeightReturnNumber"></div>	</li>
 					<li>Source ID: <span id="lblWeightSourceID"></span> <div id="sldWeightSourceID"></div>	</li>
@@ -75280,31 +75374,31 @@ ENDSEC
 
 				<div id="materials.rgb_container">
 					<div class="divider">
-						<span>RGB</span>
+						<span data-i18n="appearance.rgb">RGB</span>
 					</div>
 
-					<li>Gamma: <span id="lblRGBGamma"></span> <div id="sldRGBGamma"></div>	</li>
-					<li>Brightness: <span id="lblRGBBrightness"></span> <div id="sldRGBBrightness"></div>	</li>
-					<li>Contrast: <span id="lblRGBContrast"></span> <div id="sldRGBContrast"></div>	</li>
+					<li><span data-i18n="appearance.gamma">Gamma</span>: <span id="lblRGBGamma"></span> <div id="sldRGBGamma"></div>	</li>
+					<li><span data-i18n="appearance.brightness">Brightness</span>: <span id="lblRGBBrightness"></span> <div id="sldRGBBrightness"></div>	</li>
+					<li><span data-i18n="appearance.contrast">Contrast</span>: <span id="lblRGBContrast"></span> <div id="sldRGBContrast"></div>	</li>
 				</div>
 
 				<div id="materials.extra_container">
 					<div class="divider">
-						<span>Extra Attribute</span>
+						<span data-i18n="appearance.extra_attribute">Extra Attribute</span>
 					</div>
 
 					<li><span data-i18n="appearance.extra_range"></span>: <span id="lblExtraRange"></span> <div id="sldExtraRange"></div></li>
 
 					<li>
 						<selectgroup id="extra_gradient_repeat_option">
-							<option id="extra_gradient_repeat_clamp" value="CLAMP">Clamp</option>
-							<option id="extra_gradient_repeat_repeat" value="REPEAT">Repeat</option>
-							<option id="extra_gradient_repeat_mirrored_repeat" value="MIRRORED_REPEAT">Mirrored Repeat</option>
+							<option id="extra_gradient_repeat_clamp" value="CLAMP" data-i18n="appearance.clamp">Clamp</option>
+							<option id="extra_gradient_repeat_repeat" value="REPEAT" data-i18n="appearance.repeat">Repeat</option>
+							<option id="extra_gradient_repeat_mirrored_repeat" value="MIRRORED_REPEAT" data-i18n="appearance.mirrored_repeat">Mirrored Repeat</option>
 						</selectgroup>
 					</li>
 
 					<li>
-						<span>Gradient Scheme:</span>
+						<span data-i18n="appearance.gradient_scheme">Gradient Scheme:</span>
 						<div id="extra_gradient_scheme_selection" class="gradient_scheme" style="display: flex; padding: 1em 0em">
 						</div>
 					</li>
@@ -75312,7 +75406,7 @@ ENDSEC
 				
 				<div id="materials.matcap_container">
 					<div class="divider">
-						<span>MATCAP</span>
+						<span data-i18n="appearance.matcap">MATCAP</span>
 					</div>
 
 					<li>
@@ -75322,7 +75416,7 @@ ENDSEC
 
 				<div id="materials.color_container">
 					<div class="divider">
-						<span>Color</span>
+						<span data-i18n="appearance.color">Color</span>
 					</div>
 
 					<input id="materials.color.picker" />
@@ -75331,21 +75425,21 @@ ENDSEC
 
 				<div id="materials.elevation_container">
 					<div class="divider">
-						<span>Elevation</span>
+						<span data-i18n="appearance.elevation">Elevation</span>
 					</div>
 
 					<li><span data-i18n="appearance.elevation_range"></span>: <span id="lblHeightRange"></span> <div id="sldHeightRange"></div>	</li>
 
 					<li>
 						<selectgroup id="gradient_repeat_option">
-							<option id="gradient_repeat_clamp" value="CLAMP">Clamp</option>
-							<option id="gradient_repeat_repeat" value="REPEAT">Repeat</option>
-							<option id="gradient_repeat_mirrored_repeat" value="MIRRORED_REPEAT">Mirrored Repeat</option>
+							<option id="gradient_repeat_clamp" value="CLAMP" data-i18n="appearance.clamp">Clamp</option>
+							<option id="gradient_repeat_repeat" value="REPEAT" data-i18n="appearance.repeat">Repeat</option>
+							<option id="gradient_repeat_mirrored_repeat" value="MIRRORED_REPEAT" data-i18n="appearance.mirrored_repeat">Mirrored Repeat</option>
 						</selectgroup>
 					</li>
 
 					<li>
-						<span>Gradient Scheme:</span>
+						<span data-i18n="appearance.gradient_scheme">Gradient Scheme:</span>
 						<div id="elevation_gradient_scheme_selection" class="gradient_scheme" style="display: flex; padding: 1em 0em">
 						</div>
 					</li>
@@ -75353,33 +75447,33 @@ ENDSEC
 
 				<div id="materials.transition_container">
 					<div class="divider">
-						<span>Transition</span>
+						<span data-i18n="appearance.transition">Transition</span>
 					</div>
 
-					<li>transition: <span id="lblTransition"></span> <div id="sldTransition"></div>	</li>
+					<li><span data-i18n="appearance.transition">Transition</span>: <span id="lblTransition"></span> <div id="sldTransition"></div>	</li>
 				</div>
 
 				<div id="materials.intensity_container">
 					<div class="divider">
-						<span>Intensity</span>
+						<span data-i18n="appearance.intensity">Intensity</span>
 					</div>
 
-					<li>Range: <span id="lblIntensityRange"></span> <div id="sldIntensityRange"></div>	</li>
-					<li>Gamma: <span id="lblIntensityGamma"></span> <div id="sldIntensityGamma"></div>	</li>
-					<li>Brightness: <span id="lblIntensityBrightness"></span> <div id="sldIntensityBrightness"></div>	</li>
-					<li>Contrast: <span id="lblIntensityContrast"></span> <div id="sldIntensityContrast"></div>	</li>
+					<li><span data-i18n="appearance.range">Range</span>: <span id="lblIntensityRange"></span> <div id="sldIntensityRange"></div>	</li>
+					<li><span data-i18n="appearance.gamma">Gamma</span>: <span id="lblIntensityGamma"></span> <div id="sldIntensityGamma"></div>	</li>
+					<li><span data-i18n="appearance.brightness">Brightness</span>: <span id="lblIntensityBrightness"></span> <div id="sldIntensityBrightness"></div>	</li>
+					<li><span data-i18n="appearance.contrast">Contrast</span>: <span id="lblIntensityContrast"></span> <div id="sldIntensityContrast"></div>	</li>
 				</div>
 
 				<div id="materials.gpstime_container">
 					<div class="divider">
-						<span>GPS Time</span>
+						<span data-i18n="appearance.gps_time">GPS Time</span>
 					</div>
 
 				</div>
 				
 				<div id="materials.index_container">
 					<div class="divider">
-						<span>Indices</span>
+						<span data-i18n="appearance.indices">Indices</span>
 					</div>
 				</div>
 
@@ -79503,7 +79597,7 @@ ENDSEC
     }
 
     initClippingTool() {
-
+      return; // Clipping disabled
 
       this.viewer.addEventListener("cliptask_changed", (event) => {
         console.log("TODO");
@@ -79608,6 +79702,8 @@ ENDSEC
     }
 
     initFilters() {
+      return; // Filters section hidden
+
       this.initClassificationList();
       this.initReturnFilters();
       this.initGPSTimeFilters();
@@ -80013,15 +80109,15 @@ ENDSEC
         }
       });
 
-      this.dom.find('#sldFOV').slider({
-        value: this.viewer.getFOV(),
-        min: 20,
-        max: 100,
-        step: 1,
-        slide: (event, ui) => {
-          this.viewer.setFOV(ui.value);
-        }
-      });
+      // this.dom.find('#sldFOV').slider({
+      //   value: this.viewer.getFOV(),
+      //   min: 20,
+      //   max: 100,
+      //   step: 1,
+      //   slide: (event, ui) => {
+      //     this.viewer.setFOV(ui.value);
+      //   }
+      // });
 
       $('#sldEDLRadius').slider({
         value: this.viewer.getEDLRadius(),
@@ -80043,25 +80139,25 @@ ENDSEC
         }
       });
 
-      $('#sldEDLOpacity').slider({
-        value: this.viewer.getEDLOpacity(),
-        min: 0,
-        max: 1,
-        step: 0.01,
-        slide: (event, ui) => {
-          this.viewer.setEDLOpacity(ui.value);
-        }
-      });
+      // $('#sldEDLOpacity').slider({
+      //   value: this.viewer.getEDLOpacity(),
+      //   min: 0,
+      //   max: 1,
+      //   step: 0.01,
+      //   slide: (event, ui) => {
+      //     this.viewer.setEDLOpacity(ui.value);
+      //   }
+      // });
 
       this.viewer.addEventListener('point_budget_changed', (event) => {
         $('#lblPointBudget')[0].innerHTML = Utils.addCommas(this.viewer.getPointBudget());
         sldPointBudget.slider({value: this.viewer.getPointBudget()});
       });
 
-      this.viewer.addEventListener('fov_changed', (event) => {
-        $('#lblFOV')[0].innerHTML = parseInt(this.viewer.getFOV());
-        $('#sldFOV').slider({value: this.viewer.getFOV()});
-      });
+      // this.viewer.addEventListener('fov_changed', (event) => {
+      //   $('#lblFOV')[0].innerHTML = parseInt(this.viewer.getFOV());
+      //   $('#sldFOV').slider({value: this.viewer.getFOV()});
+      // });
 
       this.viewer.addEventListener('use_edl_changed', (event) => {
         $('#chkEDLEnabled')[0].checked = this.viewer.getEDLEnabled();
@@ -80077,27 +80173,27 @@ ENDSEC
         $('#sldEDLStrength').slider({value: this.viewer.getEDLStrength()});
       });
 
-      this.viewer.addEventListener('background_changed', (event) => {
-        $("input[name=background][value='" + this.viewer.getBackground() + "']").prop('checked', true);
-      });
+      // this.viewer.addEventListener('background_changed', (event) => {
+      //   $("input[name=background][value='" + this.viewer.getBackground() + "']").prop('checked', true);
+      // });
 
       $('#lblPointBudget')[0].innerHTML = Utils.addCommas(this.viewer.getPointBudget());
-      $('#lblFOV')[0].innerHTML = parseInt(this.viewer.getFOV());
+      // $('#lblFOV')[0].innerHTML = parseInt(this.viewer.getFOV());
       $('#lblEDLRadius')[0].innerHTML = this.viewer.getEDLRadius().toFixed(1);
       $('#lblEDLStrength')[0].innerHTML = this.viewer.getEDLStrength().toFixed(1);
       $('#chkEDLEnabled')[0].checked = this.viewer.getEDLEnabled();
 
-      {
-        let elBackground = $(`#background_options`);
-        elBackground.selectgroup();
-
-        elBackground.find("input").click((e) => {
-          this.viewer.setBackground(e.target.value);
-        });
-
-        let currentBackground = this.viewer.getBackground();
-        $(`input[name=background_options][value=${currentBackground}]`).trigger("click");
-      }
+      // {
+      //   let elBackground = $(`#background_options`);
+      //   elBackground.selectgroup();
+      //
+      //   elBackground.find("input").click((e) => {
+      //     this.viewer.setBackground(e.target.value);
+      //   });
+      //
+      //   let currentBackground = this.viewer.getBackground();
+      //   $(`input[name=background_options][value=${currentBackground}]`).trigger("click");
+      // }
 
       $('#chkEDLEnabled').click(() => {
         this.viewer.setEDLEnabled($('#chkEDLEnabled').prop("checked"));
@@ -80109,143 +80205,142 @@ ENDSEC
       let sldMoveSpeed = $('#sldMoveSpeed');
       let lblMoveSpeed = $('#lblMoveSpeed');
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + '/icons/earth_controls_1.png',
-        '[title]tt.earth_control',
-        () => {
-          this.viewer.setControls(this.viewer.earthControls);
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + '/icons/earth_controls_1.png',
+      //   '[title]tt.earth_control',
+      //   () => {
+      //     this.viewer.setControls(this.viewer.earthControls);
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + '/icons/fps_controls.svg',
-        '[title]tt.flight_control',
-        () => {
-          this.viewer.setControls(this.viewer.fpControls);
-          this.viewer.fpControls.lockElevation = false;
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + '/icons/fps_controls.svg',
+      //   '[title]tt.flight_control',
+      //   () => {
+      //     this.viewer.setControls(this.viewer.fpControls);
+      //     this.viewer.fpControls.lockElevation = false;
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + '/icons/helicopter_controls.svg',
-        '[title]tt.heli_control',
-        () => {
-          this.viewer.setControls(this.viewer.fpControls);
-          this.viewer.fpControls.lockElevation = true;
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + '/icons/helicopter_controls.svg',
+      //   '[title]tt.heli_control',
+      //   () => {
+      //     this.viewer.setControls(this.viewer.fpControls);
+      //     this.viewer.fpControls.lockElevation = true;
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + '/icons/orbit_controls.svg',
-        '[title]tt.orbit_control',
-        () => {
-          this.viewer.setControls(this.viewer.orbitControls);
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + '/icons/orbit_controls.svg',
+      //   '[title]tt.orbit_control',
+      //   () => {
+      //     this.viewer.setControls(this.viewer.orbitControls);
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + '/icons/focus.svg',
-        '[title]tt.focus_control',
-        () => {
-          this.viewer.fitToScreen();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + '/icons/focus.svg',
+      //   '[title]tt.focus_control',
+      //   () => {
+      //     this.viewer.fitToScreen();
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/navigation_cube.svg",
-        "[title]tt.navigation_cube_control",
-        () => {
-          this.viewer.toggleNavigationCube();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/navigation_cube.svg",
+      //   "[title]tt.navigation_cube_control",
+      //   () => {
+      //     this.viewer.toggleNavigationCube()
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/images/compas.svg",
-        "[title]tt.compass",
-        () => {
-          const visible = !this.viewer.compass.isVisible();
-          this.viewer.compass.setVisible(visible);
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/images/compas.svg",
+      //   "[title]tt.compass",
+      //   () => {
+      //     const visible = !this.viewer.compass.isVisible();
+      //     this.viewer.compass.setVisible(visible);
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/camera_animation.svg",
-        "[title]tt.camera_animation",
-        () => {
-          const animation = CameraAnimation.defaultFromView(this.viewer);
-
-          viewer.scene.addCameraAnimation(animation);
-        }
-      ));
-
-
-      elNavigation.append("<br>");
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/camera_animation.svg",
+      //   "[title]tt.camera_animation",
+      //   () => {
+      //     const animation = CameraAnimation.defaultFromView(this.viewer);
+      //
+      //     viewer.scene.addCameraAnimation(animation);
+      //   }
+      // ));
 
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/left.svg",
-        "[title]tt.left_view_control",
-        () => {
-          this.viewer.setLeftView();
-        }
-      ));
+      // elNavigation.append("<br>");
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/right.svg",
-        "[title]tt.right_view_control",
-        () => {
-          this.viewer.setRightView();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/left.svg",
+      //   "[title]tt.left_view_control",
+      //   () => {
+      //     this.viewer.setLeftView()
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/front.svg",
-        "[title]tt.front_view_control",
-        () => {
-          this.viewer.setFrontView();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/right.svg",
+      //   "[title]tt.right_view_control",
+      //   () => {
+      //     this.viewer.setRightView()
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/back.svg",
-        "[title]tt.back_view_control",
-        () => {
-          this.viewer.setBackView();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/front.svg",
+      //   "[title]tt.front_view_control",
+      //   () => {
+      //     this.viewer.setFrontView()
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/top.svg",
-        "[title]tt.top_view_control",
-        () => {
-          this.viewer.setTopView();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/back.svg",
+      //   "[title]tt.back_view_control",
+      //   () => {
+      //     this.viewer.setBackView()
+      //   }
+      // ));
 
-      elNavigation.append(this.createToolIcon(
-        Potree.resourcePath + "/icons/bottom.svg",
-        "[title]tt.bottom_view_control",
-        () => {
-          this.viewer.setBottomView();
-        }
-      ));
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/top.svg",
+      //   "[title]tt.top_view_control",
+      //   () => {
+      //     this.viewer.setTopView()
+      //   }
+      // ));
+
+      // elNavigation.append(this.createToolIcon(
+      //   Potree.resourcePath + "/icons/bottom.svg",
+      //   "[title]tt.bottom_view_control",
+      //   () => {
+      //     this.viewer.setBottomView()
+      //   }
+      // ));
 
 
-      let elCameraProjection = $(`
-			<selectgroup id="camera_projection_options">
-				<option id="camera_projection_options_perspective" value="PERSPECTIVE" data-i18n="navigation.perspective">Perspective</option>
-				<option id="camera_projection_options_orthigraphic" value="ORTHOGRAPHIC" data-i18n="navigation.orthographic">Orthographic</option>
-			</selectgroup>
-		`);
-      elNavigation.append(elCameraProjection);
-      let title = `<span data-i18n="navigation.camera_projection">Camera Projection</span>`;
-      elCameraProjection.selectgroup({title: title});
-      elCameraProjection.find("input").click((e) => {
-        this.viewer.setCameraMode(CameraMode[e.target.value]);
-      });
-      let cameraMode = Object.keys(CameraMode)
-        .filter(key => CameraMode[key] === this.viewer.scene.cameraMode);
-      elCameraProjection.find(`input[value=${cameraMode}]`).trigger("click");
+      // let elCameraProjection = $(`
+      // 		<selectgroup id="camera_projection_options">
+      // 			<option id="camera_projection_options_perspective" value="PERSPECTIVE" data-i18n="navigation.perspective">Perspective</option>
+      // 			<option id="camera_projection_options_orthigraphic" value="ORTHOGRAPHIC" data-i18n="navigation.orthographic">Orthographic</option>
+      // 		</selectgroup>
+      // 	`);
+      // elNavigation.append(elCameraProjection);
+      // let title = `<span data-i18n="navigation.camera_projection">Camera Projection</span>`;
+      // elCameraProjection.selectgroup({title: title});
+      // elCameraProjection.find("input").click((e) => {
+      //   this.viewer.setCameraMode(CameraMode[e.target.value]);
+      // });
+      // let cameraMode = Object.keys(CameraMode)
+      //   .filter(key => CameraMode[key] === this.viewer.scene.cameraMode);
+      // elCameraProjection.find(`input[value=${cameraMode}]`).trigger("click");
 
       let speedRange = new Vector2(1, 10 * 1000);
 
@@ -88076,7 +88171,8 @@ ENDSEC
 
           let onPointcloudAdded = (e) => {
             if ( this.scene.pointclouds.length === 1 ) {
-              let speed = e.pointcloud.boundingBox.getSize(new Vector3()).length();
+              if (!this._octreeSize) this._octreeSize = new Vector3();
+              let speed = e.pointcloud.boundingBox.getSize(this._octreeSize).length();
               speed = speed / 5;
               this.setMoveSpeed(speed);
             }
@@ -88470,6 +88566,7 @@ ENDSEC
     setPointBudget(value) {
       if ( Potree.pointBudget !== value ) {
         Potree.pointBudget = parseInt(value);
+        Potree._maxPointBudget = Potree.pointBudget; // sync adaptive ceiling
         this.dispatchEvent({'type': 'point_budget_changed', 'viewer': this});
       }
     };
@@ -89379,7 +89476,8 @@ ENDSEC
 
       let distances = [];
 
-      let renderAreaSize = this.renderer.getSize(new Vector2());
+      if ( !this._annotSizeVec ) this._annotSizeVec = new Vector2();
+      let renderAreaSize = this.renderer.getSize(this._annotSizeVec);
 
       let viewer = this;
 
@@ -89529,9 +89627,13 @@ ENDSEC
 
       Potree.pointLoadLimit = Potree.pointBudget * 2;
 
-      const lTarget = camera.position.clone().add(camera.getWorldDirection(new Vector3()).multiplyScalar(1000));
+      // Reuse pre-allocated vectors for light direction calc
+      if ( !this._lightTarget ) this._lightTarget = new Vector3();
+      if ( !this._lightDir ) this._lightDir = new Vector3();
+      camera.getWorldDirection(this._lightDir);
+      this._lightTarget.copy(camera.position).add(this._lightDir.multiplyScalar(1000));
       this.scene.directionalLight.position.copy(camera.position);
-      this.scene.directionalLight.lookAt(lTarget);
+      this.scene.directionalLight.lookAt(this._lightTarget);
 
 
       for ( let pointcloud of visiblePointClouds ) {
@@ -89727,8 +89829,11 @@ ENDSEC
           });
         }
 
-        this._previousCamera = this.scene.getActiveCamera().clone();
-        this._previousCamera.rotation.copy(this.scene.getActiveCamera().rotation);
+        // Reuse existing camera object instead of clone() per frame
+        this._previousCamera.position.copy(camera.position);
+        this._previousCamera.rotation.copy(camera.rotation);
+        this._previousCamera.matrixWorld.copy(camera.matrixWorld);
+        this._previousCamera.projectionMatrix.copy(camera.projectionMatrix);
 
       }
 
@@ -89750,10 +89855,12 @@ ENDSEC
         let clipBoxes = boxes.filter(degenerate).map(box => {
           box.updateMatrixWorld();
 
-          let boxInverse = box.matrixWorld.clone().invert();
-          let boxPosition = box.getWorldPosition(new Vector3());
+          if (!box._cachedInverse) box._cachedInverse = new Matrix4();
+          if (!box._cachedPosition) box._cachedPosition = new Vector3();
+          box._cachedInverse.copy(box.matrixWorld).invert();
+          box.getWorldPosition(box._cachedPosition);
 
-          return {box: box, inverse: boxInverse, position: boxPosition};
+          return {box: box, inverse: box._cachedInverse, position: box._cachedPosition};
         });
 
         let clipPolygons = this.scene.polygonClipVolumes.filter(vol => vol.initialized);
@@ -90312,7 +90419,8 @@ ENDSEC
   let pointBudget = 1 * 1000 * 1000;
   let framenumber = 0;
   let numNodesLoading = 0;
-  let maxNodesLoading = 4;
+  let maxNodesLoading = 8;
+  let uploadBudgetMs = 5;
 
   const debug = {};
 
@@ -90336,6 +90444,15 @@ ENDSEC
 
 
   function loadPointCloud$1(path, name, callback) {
+    // Warm up worker pool on first load
+    if (!Potree._workersWarmed) {
+      let wp = Potree.scriptPath + '/workers/BinaryDecoderWorker.js';
+      let wp2 = Potree.scriptPath + '/workers/2.0/DecoderWorker.js';
+      Potree.workerPool.warmup(wp);
+      Potree.workerPool.warmup(wp2);
+      Potree._workersWarmed = true;
+    }
+
     let loaded = function (e) {
       e.pointcloud.name = name;
       callback(e);
@@ -90614,9 +90731,11 @@ ENDSEC
   exports.pointBudget = pointBudget;
   exports.resourcePath = resourcePath;
   exports.saveProject = saveProject;
+  exports.setVisibilityDirty = setVisibilityDirty;
   exports.updatePointClouds = updatePointClouds;
   exports.updateVisibility = updateVisibility;
   exports.updateVisibilityStructures = updateVisibilityStructures;
+  exports.uploadBudgetMs = uploadBudgetMs;
   exports.version = version;
   exports.workerPool = workerPool;
 
