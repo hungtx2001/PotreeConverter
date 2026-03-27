@@ -1,5 +1,5 @@
-window = { };
-document = { };
+window = {};
+document = {};
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict';window.ZstdCodec=require('./lib/zstd-codec.js');window.ZstdStream=require('./lib/zstd-stream.js');
 
@@ -22361,16 +22361,16 @@ function parseEpt(event) {
 // document = { };
 // importScripts('/libs/zstd-codec/bundle.js', '/libs/ept/ParseBuffer.js');
 
-onmessage = async function(event) {
-	
-	const zstd = await new Promise(resolve => window.ZstdCodec.run(resolve));
-	
-	const streaming = new zstd.Streaming();
-	const arr = new Uint8Array(event.data.buffer);
-	const decompressed = streaming.decompress(arr);
+onmessage = async function (event) {
 
-	event.data.buffer = decompressed.buffer
-	parseEpt(event);
-	
+  const zstd = await new Promise(resolve => window.ZstdCodec.run(resolve));
+
+  const streaming = new zstd.Streaming();
+  const arr = new Uint8Array(event.data.buffer);
+  const decompressed = streaming.decompress(arr);
+
+  event.data.buffer = decompressed.buffer
+  parseEpt(event);
+
 };
 
